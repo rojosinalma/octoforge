@@ -6,6 +6,24 @@ All notable changes to Octoforge are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The UI runs on tailor-react instead of Primer React. It offers every tailor skin and palette: pick
+  them on the Settings page under Appearance, switch dark and light with the sun/moon button in the
+  footer. The default look is the `primer` skin with the `gruvbox` palette, following the system mode.
+- The `theme` setting is replaced by `skin`, `palette` and `mode`. A stored theme carries over as the
+  mode (`dark…` = dark, `light…` = light, `auto` = auto).
+- Settings with a duration (request timeout, adoption timeout, manifest cache, index refresh, keep in
+  memory, resend sibling list) take a number and a unit (s, min, h). Every setting saves on change,
+  shows a toast and goes back to its saved value when the value is out of range.
+- The Settings page has a section list on the side.
+- The request timeout is set in whole seconds.
+
+### Removed
+
+- The account menu: the theme moved to Settings and the footer. **Sign out** is a button in the
+  header when a password is set.
+
 ## [0.1.5] - 2026-10-21
 
 ### Changed

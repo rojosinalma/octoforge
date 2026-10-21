@@ -10,11 +10,9 @@
   },
   "dependencies": {
     "@octoforge/shared": "workspace:*",
-    "@primer/octicons-react": "19.40.0",
-    "@primer/primitives": "11.10.0",
-    "@primer/react": "38.40.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "tailor-react": "workspace:*",
     "zod": "4.6.7"
   },
   "devDependencies": {

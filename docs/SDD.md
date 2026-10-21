@@ -21,7 +21,9 @@ databases next to each other.
   - `packages/server`: Hono on Bun, port 3000. Routes orchestrate; logic lives in `src/lib`
     (member registry, member API client, GitHub client, credentials, database adoption, secret store,
     settings, journal); `src/db` holds the SQLite and Postgres drivers and their migrations.
-  - `packages/web`: React + Vite + Primer React, served by the server as a static SPA.
+  - `packages/web`: React + Vite + tailor-react, served by the server as a static SPA. tailor-react is
+    the React kit of the tailor design system, vendored as source in `vendor/tailor-react` (a workspace);
+    its CSS, skins, palettes and icon sprite are vendored in `packages/web/public/tailor/`.
 - The member contract is [members.md](members.md). Octoforge reads manifests and status from each
   member's `/api/octoforge/*`, and writes to members only through that API, never through a database.
 
@@ -144,6 +146,7 @@ with `OCTOFORGE_LEAK_PATTERNS`).
 | Existing member roles | Keep the password of a role Octoforge did not create (operator enters it, checked by a login first); rotate only roles recorded in `created_roles` by oid; `search_path` set `IN DATABASE` | A member may already use its role for its own database: a new password would break its `DATABASE_URL` and the rollback; a cluster-wide `search_path` would change it there too | 2026-10-21 |
 | GitHub App | One shared GitHub App for all members (2026-10-21): an existing App is registered by id + key (key in memory only; id, slug, owner, permissions and installations kept in `settings` row `shared_app`), or created from the union of every member's `github.app` (highest level wins, one `webhook_path` at most); gaps closed on GitHub's permission and installation pages, then re-checked with `GET /app`. Per-member Apps stay as the alternative | One key, one set of installations and one place to change permissions for every tool; GitHub has no API to change an App's permissions, so Octoforge shows the exact gaps and links the pages | 2026-10-21 |
 | Sibling list pushed by Octoforge (2026-10-21) | Octoforge pushes the family list to every instance (`PUT /api/octoforge/siblings`) on changes, at start-up and every `siblingsResendMin`; outcomes kept in memory only, a 404 stops the pushes to that instance until an instance changes | Members never need to know where Octoforge or the other tools run; a restarted member gets the list back by the next push; no new table and no polling from the members | 2026-10-21 |
+| UI on tailor-react (2026-10-21) | React + tailor-react (`Ui.*` components) over the tailor CSS, every tailor skin and palette, skin `primer` and palette `gruvbox` by default, mode `auto`; the choice is stored as the settings `skin`, `palette` and `mode` (supersedes Primer React and the `theme` setting) | One look across the house tools, and every skin and palette with a sun/moon toggle in the footer instead of the eight Primer themes; the `primer` skin keeps the GitHub look. The kit is vendored as source, so a fresh clone and the image build need nothing outside the repo | 2026-10-21 |
 | Auth | Fail-closed password login (`AUTH_PASSWORD`), `AUTH=none` only on purpose | The app creates credentials; it must never start open by accident | 2026-10-21 |
 
 ## Current scope

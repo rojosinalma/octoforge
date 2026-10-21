@@ -9,6 +9,7 @@ COPY package.json bun.lock bunfig.toml ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/server/package.json packages/server/
 COPY packages/web/package.json packages/web/
+COPY vendor/tailor-react/package.json vendor/tailor-react/
 RUN bun install --frozen-lockfile
 
 # ---------------------------------------------------------------------------
@@ -16,6 +17,7 @@ RUN bun install --frozen-lockfile
 # ---------------------------------------------------------------------------
 FROM deps AS build
 COPY tsconfig.base.json ./
+COPY vendor vendor
 COPY packages packages
 RUN bun run --filter @octoforge/web build
 
@@ -28,6 +30,7 @@ COPY package.json bun.lock bunfig.toml ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/server/package.json packages/server/
 COPY packages/web/package.json packages/web/
+COPY vendor/tailor-react/package.json vendor/tailor-react/
 RUN bun install --frozen-lockfile --production
 
 # ---------------------------------------------------------------------------

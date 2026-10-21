@@ -9,33 +9,10 @@ import {
   type PendingCredential,
   resolvePublicUrl,
 } from '@octoforge/shared';
-import {
-  AlertIcon,
-  CheckIcon,
-  CopyIcon,
-  KeyIcon,
-  LinkExternalIcon,
-  PaperAirplaneIcon,
-  SyncIcon,
-  TrashIcon,
-} from '@primer/octicons-react';
-import {
-  Banner,
-  Button,
-  Checkbox,
-  Dialog,
-  FormControl,
-  Label,
-  Link,
-  Select,
-  Spinner,
-  TextInput,
-  useConfirm,
-} from '@primer/react';
-import { Tooltip } from '@primer/react/next';
 import { type FormEvent, useEffect, useState } from 'react';
+import { Ui, useConfirm } from 'tailor-react';
 import { api } from '../api';
-import { Page, Section, StatusDot } from '../components/Page';
+import { Icon, LinkButton, Loading, Page, Section, StatusDot } from '../components/Page';
 import { useApp } from '../hooks/useApp';
 import { useAsync, useInterval } from '../hooks/useAsync';
 import { useToast } from '../hooks/useToast';
@@ -43,6 +20,29 @@ import { hostOf, publicUrlSourceLabel, relativeTime, sourceLabel } from '../lib/
 import { linkClick, navigate, useRoute } from '../router';
 
 const err = (e: unknown) => (e as Error).message;
+
+const NOTICE_ICON = {
+  info: 'bi-info-circle',
+  warning: 'bi-exclamation-triangle',
+  danger: 'bi-x-circle',
+} as const;
+
+/** A flash with a bold title and one line of reason (`.t-alert`). */
+export function Notice({
+  tone,
+  title,
+  text,
+}: {
+  tone: keyof typeof NOTICE_ICON;
+  title: string;
+  text: string;
+}) {
+  return (
+    <Ui.Alert tone={tone} icon={NOTICE_ICON[tone]} role={tone === 'info' ? 'status' : 'alert'}>
+      <strong>{title}.</strong> {text}
+    </Ui.Alert>
+  );
+}
 
 function InstanceStatusTable({
   member,
@@ -56,12 +56,11 @@ function InstanceStatusTable({
   const { toast } = useToast();
   const confirm = useConfirm();
   const revoke = async (inst: Instance) => {
-    const ok = await confirm({
-      title: 'Drop the delivered credential?',
-      content: `${hostOf(inst.baseUrl)} goes back to the credential in its own .env.`,
-      confirmButtonContent: 'Drop',
-      confirmButtonType: 'danger',
-    });
+    const ok = await confirm(
+      'Drop the delivered credential?',
+      `${hostOf(inst.baseUrl)} goes back to the credential in its own .env.`,
+      { label: 'Drop' },
+    );
     if (!ok) return;
     try {
       const r = await api.revoke(member, inst.id);
@@ -72,75 +71,79 @@ function InstanceStatusTable({
     }
   };
   return (
-    <table className="table">
-      <thead>
-        <tr>
-          <th>Instance</th>
-          <th>GitHub</th>
-          <th>Source</th>
-          <th>Version</th>
-          <th aria-label="Actions" />
-        </tr>
-      </thead>
-      <tbody>
-        {statuses.map((s) => {
-          const g = s.status?.github;
-          return (
-            <tr key={s.instance.id}>
-              <td>
-                <span className="cell-inline">
-                  <StatusDot up={s.ok} label={s.ok ? 'answers' : 'no answer'} />
-                  {s.instance.label || hostOf(s.instance.baseUrl)}
-                </span>
-              </td>
-              {s.ok ? (
-                <>
-                  <td>
-                    {g?.mode ? (
-                      <Label>{g.mode === 'app' ? 'GitHub App' : 'Token'}</Label>
-                    ) : (
-                      <span className="fg-muted">none</span>
-                    )}{' '}
-                    {g?.login && <span className="mono">{g.login}</span>}
-                    {g?.app_id ? <span className="mono"> App {g.app_id}</span> : null}
-                    {g?.missing && g.missing.length > 0 && (
-                      <div>
-                        <Label variant="attention">reports missing: {g.missing.join(', ')}</Label>{' '}
-                        {g.permissions_url && (
-                          <Link href={g.permissions_url} target="_blank" rel="noreferrer" className="small">
-                            edit permissions
-                          </Link>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                  <td>{sourceLabel(g?.source)}</td>
-                  <td className="mono">{s.status?.version || '?'}</td>
-                </>
-              ) : (
-                <td colSpan={3} className="fg-danger">
-                  {s.error}
+    <Ui.Table.Wrap>
+      <Ui.Table variant="data">
+        <thead>
+          <tr>
+            <th>Instance</th>
+            <th>GitHub</th>
+            <th>Source</th>
+            <th>Version</th>
+            <th className="t-col-actions">
+              <span className="t-visually-hidden">Actions</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {statuses.map((s) => {
+            const g = s.status?.github;
+            return (
+              <tr key={s.instance.id}>
+                <td>
+                  <span className="cell-inline">
+                    <StatusDot up={s.ok} label={s.ok ? 'answers' : 'no answer'} />
+                    {s.instance.label || hostOf(s.instance.baseUrl)}
+                  </span>
                 </td>
-              )}
-              <td className="cell-actions">
-                {g?.source === 'octoforge' && (
-                  <Tooltip text="Drop the delivered credential" direction="w">
-                    <Button
-                      size="small"
-                      variant="invisible"
-                      leadingVisual={TrashIcon}
+                {s.ok ? (
+                  <>
+                    <td>
+                      {g?.mode ? (
+                        <Ui.Badge>{g.mode === 'app' ? 'GitHub App' : 'Token'}</Ui.Badge>
+                      ) : (
+                        <span className="t-muted">none</span>
+                      )}{' '}
+                      {g?.login && <span className="t-mono">{g.login}</span>}
+                      {g?.app_id ? <span className="t-mono"> App {g.app_id}</span> : null}
+                      {g?.missing && g.missing.length > 0 && (
+                        <div>
+                          <Ui.Badge tone="warning">reports missing: {g.missing.join(', ')}</Ui.Badge>{' '}
+                          {g.permissions_url && (
+                            <a href={g.permissions_url} target="_blank" rel="noreferrer" className="t-small">
+                              edit permissions
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td>{sourceLabel(g?.source)}</td>
+                    <td className="t-mono">{s.status?.version || '?'}</td>
+                  </>
+                ) : (
+                  <td colSpan={3} className="fg-danger">
+                    {s.error}
+                  </td>
+                )}
+                <td className="t-col-actions">
+                  {g?.source === 'octoforge' && (
+                    <Ui.Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      tip="Drop the delivered credential"
+                      tipAt="left"
                       onClick={() => void revoke(s.instance)}
                     >
-                      Drop
-                    </Button>
-                  </Tooltip>
-                )}
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+                      <Icon name="trash" /> Drop
+                    </Ui.Button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </Ui.Table>
+    </Ui.Table.Wrap>
   );
 }
 
@@ -161,24 +164,27 @@ export function postToGitHub(action: string, manifest: object) {
 export function Owner({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const { settings } = useApp();
   return (
-    <FormControl>
-      <FormControl.Label>Owner</FormControl.Label>
-      <Select value={value} onChange={(e) => onChange(e.target.value)}>
-        <Select.Option value="">Personal account</Select.Option>
+    <Ui.Field
+      label="Owner"
+      hint={
+        settings.githubOrg ? undefined : (
+          <>
+            Add an organisation in{' '}
+            <a href="/settings" onClick={linkClick('/settings')}>
+              Settings
+            </a>{' '}
+            to offer it here.
+          </>
+        )
+      }
+    >
+      <Ui.Select value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Personal account</option>
         {settings.githubOrg && (
-          <Select.Option value={settings.githubOrg}>{settings.githubOrg} (organisation)</Select.Option>
+          <option value={settings.githubOrg}>{settings.githubOrg} (organisation)</option>
         )}
-      </Select>
-      {!settings.githubOrg && (
-        <FormControl.Caption>
-          Add an organisation in{' '}
-          <Link href="/settings" onClick={linkClick('/settings')}>
-            Settings
-          </Link>{' '}
-          to offer it here.
-        </FormControl.Caption>
-      )}
-    </FormControl>
+      </Ui.Select>
+    </Ui.Field>
   );
 }
 
@@ -229,66 +235,67 @@ function CreateApp({
       ? 'Add an instance first: the App sends its webhooks there.'
       : null;
   return (
-    <form className="card-box stack" onSubmit={(e) => void start(e)}>
-      <div className="facts">
-        <div>
-          <span className="fg-muted">Permissions</span>
-          <div className="label-row">
-            {perms.length ? perms.map(([p, l]) => <Label key={p}>{`${p}: ${l}`}</Label>) : <span>none</span>}
-          </div>
-        </div>
-        <div>
-          <span className="fg-muted">Events</span>
-          <div className="label-row">
-            {app.events.length ? app.events.map((ev) => <Label key={ev}>{ev}</Label>) : <span>none</span>}
-          </div>
-        </div>
-      </div>
-      <div className="form-row">
-        <FormControl required>
-          <FormControl.Label>App name</FormControl.Label>
-          <TextInput value={name} onChange={(e) => setName(e.target.value)} maxLength={34} block />
-          <FormControl.Caption>Unique across GitHub, at most 34 characters.</FormControl.Caption>
-        </FormControl>
-        <Owner value={org} onChange={setOrg} />
-        <FormControl>
-          <FormControl.Label>Webhooks go to</FormControl.Label>
-          <Select
-            value={String(instanceId ?? '')}
-            onChange={(e) => setInstanceId(Number(e.target.value))}
-            disabled={!instances.length}
+    <Ui.Card>
+      <Ui.Form className="t-card-body t-stack" onSubmit={(e) => void start(e)}>
+        <Ui.Facts>
+          <dt>Permissions</dt>
+          <dd className="label-row">
+            {perms.length ? (
+              perms.map(([p, l]) => <Ui.Badge key={p}>{`${p}: ${l}`}</Ui.Badge>)
+            ) : (
+              <span>none</span>
+            )}
+          </dd>
+          <dt>Events</dt>
+          <dd className="label-row">
+            {app.events.length ? (
+              app.events.map((ev) => <Ui.Badge key={ev}>{ev}</Ui.Badge>)
+            ) : (
+              <span>none</span>
+            )}
+          </dd>
+        </Ui.Facts>
+        <div className="form-row">
+          <Ui.Field label="App name" hint="Unique across GitHub, at most 34 characters.">
+            <Ui.Input value={name} onChange={(e) => setName(e.target.value)} maxLength={34} required />
+          </Ui.Field>
+          <Owner value={org} onChange={setOrg} />
+          <Ui.Field
+            label="Webhooks go to"
+            hint={
+              app.webhook_path && resolved ? (
+                <>
+                  <span className="t-mono">
+                    {resolved.url}
+                    {app.webhook_path}
+                  </span>{' '}
+                  ({publicUrlSourceLabel(resolved.source)})
+                </>
+              ) : undefined
+            }
           >
-            {instances.map((i) => (
-              <Select.Option key={i.id} value={String(i.id)}>
-                {i.label || hostOf(i.baseUrl)}
-              </Select.Option>
-            ))}
-          </Select>
-          {app.webhook_path && resolved && (
-            <FormControl.Caption>
-              <span className="mono">
-                {resolved.url}
-                {app.webhook_path}
-              </span>{' '}
-              ({publicUrlSourceLabel(resolved.source)})
-            </FormControl.Caption>
-          )}
-        </FormControl>
-      </div>
-      {blocked && (
-        <Banner variant="warning" title="Not possible yet" description={blocked} layout="compact" />
-      )}
-      <div>
-        <Button
-          type="submit"
-          variant="primary"
-          leadingVisual={busy ? () => <Spinner size="small" srText={null} /> : LinkExternalIcon}
-          disabled={busy || Boolean(blocked) || !name.trim()}
-        >
-          Create on GitHub
-        </Button>
-      </div>
-    </form>
+            <Ui.Select
+              value={String(instanceId ?? '')}
+              onChange={(e) => setInstanceId(Number(e.target.value))}
+              disabled={!instances.length}
+            >
+              {instances.map((i) => (
+                <option key={i.id} value={String(i.id)}>
+                  {i.label || hostOf(i.baseUrl)}
+                </option>
+              ))}
+            </Ui.Select>
+          </Ui.Field>
+        </div>
+        {blocked && <Notice tone="warning" title="Not possible yet" text={blocked} />}
+        <div>
+          <Ui.Button type="submit" variant="primary" busy={busy} disabled={Boolean(blocked) || !name.trim()}>
+            {busy ? <Ui.Spinner size="sm" label={null} /> : <Icon name="box-arrow-up-right" />} Create on
+            GitHub
+          </Ui.Button>
+        </div>
+      </Ui.Form>
+    </Ui.Card>
   );
 }
 
@@ -334,109 +341,110 @@ function CreateToken({
   };
   const fine = Object.entries(pat.fine_grained);
   return (
-    <form className="card-box stack" onSubmit={(e) => void check(e)}>
-      {pat.user_identity && (
-        <Banner
-          variant="info"
-          title="Acts as you"
-          description={`${card.title} needs a token of the person it works for; a GitHub App cannot replace it.`}
-          layout="compact"
-        />
-      )}
-      <div className="facts">
-        {fine.length > 0 && (
-          <div>
-            <span className="fg-muted">Fine-grained permissions</span>
-            <div className="label-row">
-              {fine.map(([p, l]) => (
-                <Label key={p}>{`${p}: ${l}`}</Label>
-              ))}
-            </div>
-          </div>
+    <Ui.Card>
+      <Ui.Form className="t-card-body t-stack" onSubmit={(e) => void check(e)}>
+        {pat.user_identity && (
+          <Notice
+            tone="info"
+            title="Acts as you"
+            text={`${card.title} needs a token of the person it works for; a GitHub App cannot replace it.`}
+          />
         )}
-        {pat.classic_scopes.length > 0 && (
-          <div>
-            <span className="fg-muted">Classic scopes</span>
-            <div className="label-row">
-              {pat.classic_scopes.map((s) => (
-                <Label key={s}>{s}</Label>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-      <div className="form-row">
-        <Owner value={org} onChange={setOrg} />
-        <div className="button-row">
+        <Ui.Facts>
           {fine.length > 0 && (
-            <Button as="a" href={fineUrl} target="_blank" rel="noreferrer" leadingVisual={LinkExternalIcon}>
-              Fine-grained token
-            </Button>
+            <>
+              <dt>Fine-grained permissions</dt>
+              <dd className="label-row">
+                {fine.map(([p, l]) => (
+                  <Ui.Badge key={p}>{`${p}: ${l}`}</Ui.Badge>
+                ))}
+              </dd>
+            </>
           )}
           {pat.classic_scopes.length > 0 && (
-            <Button
-              as="a"
-              href={classicUrl}
-              target="_blank"
-              rel="noreferrer"
-              leadingVisual={LinkExternalIcon}
-            >
-              Classic token
-            </Button>
+            <>
+              <dt>Classic scopes</dt>
+              <dd className="label-row">
+                {pat.classic_scopes.map((s) => (
+                  <Ui.Badge key={s}>{s}</Ui.Badge>
+                ))}
+              </dd>
+            </>
           )}
+        </Ui.Facts>
+        <div className="form-row">
+          <Owner value={org} onChange={setOrg} />
+          <Ui.Cluster gap="2" className="form-row-buttons">
+            {fine.length > 0 && (
+              <LinkButton href={fineUrl} external icon="box-arrow-up-right">
+                Fine-grained token
+              </LinkButton>
+            )}
+            {pat.classic_scopes.length > 0 && (
+              <LinkButton href={classicUrl} external icon="box-arrow-up-right">
+                Classic token
+              </LinkButton>
+            )}
+          </Ui.Cluster>
         </div>
-      </div>
-      <div className="input-with-button">
-        <FormControl>
-          <FormControl.Label>Paste the token</FormControl.Label>
-          <TextInput
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="github_pat_… or ghp_…"
-            block
-          />
-          <FormControl.Caption>
-            Checked against GitHub, then held in memory until you deliver it.
-          </FormControl.Caption>
-        </FormControl>
-        <Button
-          type="submit"
-          disabled={busy || !token.trim()}
-          leadingVisual={busy ? () => <Spinner size="small" srText={null} /> : CheckIcon}
-        >
-          Check
-        </Button>
-      </div>
-    </form>
+        <div className="input-with-button">
+          <Ui.Field
+            label="Paste the token"
+            hint="Checked against GitHub, then held in memory until you deliver it."
+          >
+            <Ui.Input
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="github_pat_… or ghp_…"
+            />
+          </Ui.Field>
+          <Ui.Button type="submit" busy={busy} disabled={!token.trim()}>
+            {busy ? <Ui.Spinner size="sm" label={null} /> : <Icon name="check-lg" />} Check
+          </Ui.Button>
+        </div>
+      </Ui.Form>
+    </Ui.Card>
   );
 }
 
 function EnvDialog({ text, onClose }: { text: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
   const copy = async () => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+    } catch {
+      toast('Not copied', {
+        description: 'The browser gives no clipboard here: select the text.',
+        variant: 'warning',
+      });
+    }
   };
   return (
-    <Dialog
+    <Ui.Dialog
+      open
+      id="env-block"
       title=".env block"
-      subtitle="Shown once: Octoforge no longer holds this credential."
+      size="xl"
       onClose={onClose}
-      width="xlarge"
-      footerButtons={[
-        {
-          content: copied ? 'Copied' : 'Copy',
-          leadingVisual: copied ? CheckIcon : CopyIcon,
-          onClick: () => void copy(),
-        },
-        { content: 'Done', buttonType: 'primary', onClick: onClose },
-      ]}
+      footer={
+        <>
+          <Ui.Button type="button" onClick={() => void copy()}>
+            <Icon name={copied ? 'check-lg' : 'copy'} /> {copied ? 'Copied' : 'Copy'}
+          </Ui.Button>
+          <Ui.Button type="button" variant="primary" data-dialog-close="">
+            Done
+          </Ui.Button>
+        </>
+      }
     >
+      <p className="t-muted">Shown once: Octoforge no longer holds this credential.</p>
       <pre className="env-block">{text}</pre>
-    </Dialog>
+    </Ui.Dialog>
   );
 }
 
@@ -505,12 +513,11 @@ function PendingCard({
   };
 
   const showEnv = async () => {
-    const ok = await confirm({
-      title: 'Show as .env block?',
-      content:
-        'The block is shown once. Octoforge then forgets the credential, so copy it before you close the dialog.',
-      confirmButtonContent: 'Show',
-    });
+    const ok = await confirm(
+      'Show as .env block?',
+      'The block is shown once. Octoforge then forgets the credential, so copy it before you close the dialog.',
+      { label: 'Show', danger: false },
+    );
     if (!ok) return;
     try {
       const r = await api.envBlock(p.id, installId);
@@ -533,135 +540,138 @@ function PendingCard({
   const toggle = (id: number) => setPicked((p2) => ({ ...p2, [id]: !selected.includes(id) }));
 
   return (
-    <div className={`card-box stack${highlight ? ' card-box-highlight' : ''}`}>
-      <div className="pending-head">
-        <KeyIcon />
-        {p.app ? (
-          <strong>
-            GitHub App <span className="mono">{p.app.slug}</span> (id {p.app.id})
-          </strong>
-        ) : (
-          <strong>
-            Token of <span className="mono">{p.pat?.login}</span>
-          </strong>
-        )}
-        <span className="fg-muted">expires {relativeTime(p.expiresAt)}</span>
-        <span className="spacer" />
-        <Tooltip text="Forget it without delivering" direction="w">
-          <Button size="small" variant="invisible" leadingVisual={TrashIcon} onClick={() => void discard()}>
-            Discard
-          </Button>
-        </Tooltip>
-      </div>
-      {p.pat && (
-        <div className="facts">
-          <div>
-            <span className="fg-muted">Type</span>
-            <div>
+    <Ui.Card className={highlight ? 'card-highlight' : undefined} aria-selected={highlight || undefined}>
+      <Ui.Card.Header>
+        <Ui.Card.Title>
+          <Icon name="key" />
+          {p.app ? (
+            <span>
+              GitHub App <span className="t-mono">{p.app.slug}</span> (id {p.app.id})
+            </span>
+          ) : (
+            <span>
+              Token of <span className="t-mono">{p.pat?.login}</span>
+            </span>
+          )}
+        </Ui.Card.Title>
+        <Ui.Card.Tools>
+          <span className="t-muted t-small">expires {relativeTime(p.expiresAt)}</span>
+          <Ui.Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            tip="Forget it without delivering"
+            tipAt="left"
+            onClick={() => void discard()}
+          >
+            <Icon name="trash" /> Discard
+          </Ui.Button>
+        </Ui.Card.Tools>
+      </Ui.Card.Header>
+      <Ui.Card.Body className="t-stack">
+        {p.pat && (
+          <Ui.Facts>
+            <dt>Type</dt>
+            <dd>
               {p.pat.tokenType === 'fine_grained'
                 ? 'Fine-grained'
                 : p.pat.tokenType === 'classic'
                   ? 'Classic'
                   : 'Other'}
-            </div>
+            </dd>
+            {p.pat.scopes && (
+              <>
+                <dt>Scopes</dt>
+                <dd className="label-row">
+                  {p.pat.scopes.length ? (
+                    p.pat.scopes.map((s) => <Ui.Badge key={s}>{s}</Ui.Badge>)
+                  ) : (
+                    <span>none</span>
+                  )}
+                </dd>
+              </>
+            )}
+          </Ui.Facts>
+        )}
+        {p.pat && p.pat.missing.length > 0 && (
+          <Notice
+            tone="warning"
+            title="Missing scopes"
+            text={`${p.pat.missing.join(', ')}. Create a new token with them, or deliver anyway and expect failures.`}
+          />
+        )}
+        {p.pat?.tokenType === 'fine_grained' && (
+          <p className="t-muted t-small">
+            GitHub does not list a fine-grained token's permissions; the member checks them on delivery.
+          </p>
+        )}
+        {p.app && (
+          <div className="form-row">
+            <Ui.Cluster gap="2" className="form-row-buttons">
+              <LinkButton href={p.app.installUrl} external icon="box-arrow-up-right">
+                Install the App
+              </LinkButton>
+              <Ui.Button type="button" onClick={() => void findInstalls()} busy={loadingInstalls}>
+                {loadingInstalls ? <Ui.Spinner size="sm" label={null} /> : <Icon name="arrow-repeat" />} Find
+                installations
+              </Ui.Button>
+            </Ui.Cluster>
+            {installs && installs.length > 0 && (
+              <Ui.Field label="Installation">
+                <Ui.Select
+                  value={String(installId ?? '')}
+                  onChange={(e) => setInstallId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">Let the member find it</option>
+                  {installs.map((i) => (
+                    <option key={i.id} value={String(i.id)}>
+                      {i.account} ({i.accountType}, {i.id})
+                    </option>
+                  ))}
+                </Ui.Select>
+              </Ui.Field>
+            )}
           </div>
-          {p.pat.scopes && (
-            <div>
-              <span className="fg-muted">Scopes</span>
-              <div className="label-row">
-                {p.pat.scopes.length ? (
-                  p.pat.scopes.map((s) => <Label key={s}>{s}</Label>)
-                ) : (
-                  <span>none</span>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-      {p.pat && p.pat.missing.length > 0 && (
-        <Banner
-          variant="warning"
-          title="Missing scopes"
-          description={`${p.pat.missing.join(', ')}. Create a new token with them, or deliver anyway and expect failures.`}
-          layout="compact"
-        />
-      )}
-      {p.pat?.tokenType === 'fine_grained' && (
-        <p className="fg-muted small">
-          GitHub does not list a fine-grained token's permissions; the member checks them on delivery.
-        </p>
-      )}
-      {p.app && (
-        <div className="form-row">
-          <div className="button-row">
-            <Button
-              as="a"
-              href={p.app.installUrl}
-              target="_blank"
-              rel="noreferrer"
-              leadingVisual={LinkExternalIcon}
-            >
-              Install the App
-            </Button>
-            <Button
-              onClick={() => void findInstalls()}
-              leadingVisual={loadingInstalls ? () => <Spinner size="small" srText={null} /> : SyncIcon}
-              disabled={loadingInstalls}
-            >
-              Find installations
-            </Button>
-          </div>
-          {installs && installs.length > 0 && (
-            <FormControl>
-              <FormControl.Label>Installation</FormControl.Label>
-              <Select
-                value={String(installId ?? '')}
-                onChange={(e) => setInstallId(e.target.value ? Number(e.target.value) : null)}
-              >
-                <Select.Option value="">Let the member find it</Select.Option>
-                {installs.map((i) => (
-                  <Select.Option key={i.id} value={String(i.id)}>
-                    {i.account} ({i.accountType}, {i.id})
-                  </Select.Option>
-                ))}
-              </Select>
-            </FormControl>
-          )}
-        </div>
-      )}
-      <fieldset className="checks">
-        <legend className="fg-muted">Deliver to</legend>
-        {instances.map((i) => {
-          const r = results.find((x) => x.id === i.id);
-          return (
-            <FormControl key={i.id} layout="horizontal">
-              <Checkbox checked={selected.includes(i.id)} onChange={() => toggle(i.id)} />
-              <FormControl.Label>
-                {i.label || hostOf(i.baseUrl)}
-                {r && (
-                  <span className={r.ok ? 'fg-success result-note' : 'fg-danger result-note'}>
-                    {r.ok ? <CheckIcon size={14} /> : <AlertIcon size={14} />} {r.message}
-                    {r.restart ? ' (restart required)' : ''}
-                  </span>
-                )}
-              </FormControl.Label>
-            </FormControl>
-          );
-        })}
-        {!instances.length && <span className="fg-muted">No instance configured.</span>}
-      </fieldset>
-      <div className="button-row">
-        <Button
-          variant="primary"
-          leadingVisual={busy ? () => <Spinner size="small" srText={null} /> : PaperAirplaneIcon}
-          disabled={busy || !selected.length}
-          onClick={() => void deliver()}
-        >
-          Deliver
-        </Button>
-        <Button onClick={() => void showEnv()}>Show as .env block</Button>
-      </div>
+        )}
+        <Ui.Check.Group legend="Deliver to">
+          {instances.map((i) => {
+            const r = results.find((x) => x.id === i.id);
+            return (
+              <Ui.Check
+                key={i.id}
+                checked={selected.includes(i.id)}
+                onChange={() => toggle(i.id)}
+                label={
+                  <>
+                    {i.label || hostOf(i.baseUrl)}
+                    {r && (
+                      <span className={r.ok ? 'fg-success result-note' : 'fg-danger result-note'}>
+                        <Icon name={r.ok ? 'check-lg' : 'exclamation-triangle'} /> {r.message}
+                        {r.restart ? ' (restart required)' : ''}
+                      </span>
+                    )}
+                  </>
+                }
+              />
+            );
+          })}
+          {!instances.length && <span className="t-muted">No instance configured.</span>}
+        </Ui.Check.Group>
+        <Ui.Cluster gap="2">
+          <Ui.Button
+            type="button"
+            variant="primary"
+            busy={busy}
+            disabled={!selected.length}
+            onClick={() => void deliver()}
+          >
+            {busy ? <Ui.Spinner size="sm" label={null} /> : <Icon name="send" />} Deliver
+          </Ui.Button>
+          <Ui.Button type="button" onClick={() => void showEnv()}>
+            Show as .env block
+          </Ui.Button>
+        </Ui.Cluster>
+      </Ui.Card.Body>
       {env !== null && (
         <EnvDialog
           text={env}
@@ -671,7 +681,7 @@ function PendingCard({
           }}
         />
       )}
-    </div>
+    </Ui.Card>
   );
 }
 
@@ -684,39 +694,45 @@ function SharedAppNote({ member }: { member: string }) {
   const go = linkClick('/github-app');
   if (!v.app) {
     return (
-      <Banner
-        variant="info"
-        title="Use the shared GitHub App"
-        description="One App serves every member. Set it up on the GitHub App page; an App for this member only is the alternative below."
-        primaryAction={
-          <Banner.PrimaryAction as="a" href="/github-app" onClick={go}>
+      <Ui.Alert
+        tone="info"
+        role="status"
+        icon="bi-info-circle"
+        actions={
+          <LinkButton href="/github-app" onClick={go} size="sm">
             Open GitHub App
-          </Banner.PrimaryAction>
+          </LinkButton>
         }
-      />
+      >
+        <strong>Use the shared GitHub App.</strong> One App serves every member. Set it up on the GitHub App
+        page; an App for this member only is the alternative below.
+      </Ui.Alert>
     );
   }
   const missing = mine?.missing ?? [];
   return (
-    <div className="card-box stack">
-      <div className="pending-head">
-        <KeyIcon />
-        <strong>
-          Shared App <span className="mono">{v.app.slug}</span>
-        </strong>
-        {missing.length ? (
-          <Label variant="attention">missing: {missing.join(', ')}</Label>
-        ) : (
-          <span className="fg-success small">
-            <CheckIcon size={14} /> grants what this member needs
+    <Ui.Card>
+      <Ui.Card.Header>
+        <Ui.Card.Title>
+          <Icon name="key" />
+          <span>
+            Shared App <span className="t-mono">{v.app.slug}</span>
           </span>
-        )}
-        <span className="spacer" />
-        <Button size="small" as="a" href="/github-app" onClick={go}>
-          {missing.length ? 'Update and deliver' : 'Deliver'}
-        </Button>
-      </div>
-    </div>
+        </Ui.Card.Title>
+        <Ui.Card.Tools>
+          {missing.length ? (
+            <Ui.Badge tone="warning">missing: {missing.join(', ')}</Ui.Badge>
+          ) : (
+            <span className="fg-success t-small">
+              <Icon name="check-lg" /> grants what this member needs
+            </span>
+          )}
+          <LinkButton href="/github-app" onClick={go} size="sm">
+            {missing.length ? 'Update and deliver' : 'Deliver'}
+          </LinkButton>
+        </Ui.Card.Tools>
+      </Ui.Card.Header>
+    </Ui.Card>
   );
 }
 
@@ -756,22 +772,22 @@ export function CredentialsPage({ member }: { member: string }) {
     >
       {card.error && <p className="fg-danger">{card.error.message}</p>}
       {capabilities && !capabilities.memberToken && (
-        <Banner
-          variant="warning"
+        <Notice
+          tone="warning"
           title="OCTOFORGE_TOKEN is not set"
-          description="Octoforge cannot talk to the member API. You can still create credentials and copy them as an .env block."
+          text="Octoforge cannot talk to the member API. You can still create credentials and copy them as an .env block."
         />
       )}
       {c && !m && (
-        <Banner
-          variant="warning"
+        <Notice
+          tone="warning"
           title="No manifest"
-          description={c.manifestError ?? 'This member publishes no octoforge.json yet.'}
+          text={c.manifestError ?? 'This member publishes no octoforge.json yet.'}
         />
       )}
       <Section title="Instances">
         {statuses.loading && !statuses.data ? (
-          <Spinner size="small" />
+          <Loading />
         ) : statuses.data && statuses.data.length > 0 ? (
           <InstanceStatusTable
             member={member}
@@ -779,13 +795,16 @@ export function CredentialsPage({ member }: { member: string }) {
             onRevoked={() => void statuses.reload()}
           />
         ) : (
-          <p className="fg-muted">
-            No instance configured.{' '}
-            <Link href="/settings" onClick={linkClick('/settings')}>
-              Add one in Settings
-            </Link>
-            .
-          </p>
+          <Ui.EmptyState
+            size="sm"
+            actions={
+              <LinkButton href="/settings" onClick={linkClick('/settings')} size="sm" icon="gear">
+                Add one in Settings
+              </LinkButton>
+            }
+          >
+            <p>No instance configured.</p>
+          </Ui.EmptyState>
         )}
       </Section>
       {m?.github?.auth.includes('app') && (
@@ -795,7 +814,7 @@ export function CredentialsPage({ member }: { member: string }) {
       )}
       {(pending.data?.length ?? 0) > 0 && (
         <Section title="Waiting for delivery">
-          <div className="stack">
+          <Ui.Stack gap="3">
             {pending.data?.map((p) => (
               <PendingCard
                 key={p.id}
@@ -806,7 +825,7 @@ export function CredentialsPage({ member }: { member: string }) {
                 onGone={onGone}
               />
             ))}
-          </div>
+          </Ui.Stack>
         </Section>
       )}
       {c && m?.github?.auth.includes('app') && (
@@ -819,7 +838,7 @@ export function CredentialsPage({ member }: { member: string }) {
           <CreateToken card={c} manifest={m} onAdded={(p) => pending.setData((all) => [p, ...(all ?? [])])} />
         </Section>
       )}
-      {c && m && !m.github && <p className="fg-muted">{c.title} needs no GitHub credentials.</p>}
+      {c && m && !m.github && <p className="t-muted">{c.title} needs no GitHub credentials.</p>}
     </Page>
   );
 }

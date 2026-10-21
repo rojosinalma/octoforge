@@ -1,101 +1,131 @@
-import type { Instance, Settings as SettingsT, Theme } from '@octoforge/shared';
+import type { Instance, Settings as SettingsT } from '@octoforge/shared';
 import { Settings as SettingsSchema } from '@octoforge/shared';
-import { PaperAirplaneIcon, PencilIcon, PlusIcon, TrashIcon } from '@primer/octicons-react';
-import { Button, Dialog, FormControl, IconButton, Link, Select, TextInput, useConfirm } from '@primer/react';
-import { Tooltip } from '@primer/react/next';
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useState } from 'react';
+import { type SaveFn, Ui, useConfirm } from 'tailor-react';
 import { api } from '../api';
-import { Page, Section } from '../components/Page';
+import { Icon, Loading, Page, Section } from '../components/Page';
 import { useApp } from '../hooks/useApp';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../hooks/useToast';
-import { THEME_LABELS, THEMES } from '../theme';
 
 type NumberKey = {
   [K in keyof SettingsT]: SettingsT[K] extends number ? K : never;
 }[keyof SettingsT];
 
-/** Number with a fixed unit; saves on blur or Enter, clamped to the schema range. */
-function NumberSetting({
-  k,
-  label,
-  unit,
-  help,
-  scale = 1,
-}: {
-  k: NumberKey;
-  label: string;
-  unit: string;
-  help: string;
-  /** Stored value = shown value × scale (seconds shown, milliseconds stored). */
-  scale?: number;
-}) {
-  const { settings, updateSettings } = useApp();
-  const stored = settings[k];
-  const [value, setValue] = useState(String(stored / scale));
-  useEffect(() => setValue(String(stored / scale)), [stored, scale]);
-  const shape = SettingsSchema.shape[k] as unknown as {
-    removeDefault(): { minValue: number; maxValue: number };
-  };
-  const inner = shape.removeDefault();
-  const commit = () => {
-    const n = Number(value);
-    if (!Number.isFinite(n)) return setValue(String(stored / scale));
-    const next = Math.round(Math.min(inner.maxValue, Math.max(inner.minValue, n * scale)));
-    setValue(String(next / scale));
-    if (next !== stored) void updateSettings({ [k]: next });
-  };
-  return (
-    <FormControl>
-      <FormControl.Label>{label}</FormControl.Label>
-      <TextInput
-        type="number"
-        min={inner.minValue / scale}
-        max={inner.maxValue / scale}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => e.key === 'Enter' && commit()}
-        trailingVisual={unit}
-        className="number-input"
-      />
-      <FormControl.Caption>{help}</FormControl.Caption>
-    </FormControl>
-  );
+/** Stored unit of a duration setting, as seconds per stored step. */
+const UNIT_SECONDS = { s: 1, min: 60, ms: 0.001 } as const;
+type DurationUnit = keyof typeof UNIT_SECONDS;
+
+type Spec =
+  | { kind: 'duration'; unit: DurationUnit }
+  | { kind: 'number'; unit: string }
+  | { kind: 'text'; placeholder: string };
+
+const SPECS: Partial<Record<keyof SettingsT, Spec>> = {
+  siblingsResendMin: { kind: 'duration', unit: 'min' },
+  secretTtlMin: { kind: 'duration', unit: 'min' },
+  secretStoreMax: { kind: 'number', unit: 'items' },
+  patExpiresDays: { kind: 'number', unit: 'days' },
+  githubOrg: { kind: 'text', placeholder: 'my-org' },
+  pgMemberHost: { kind: 'text', placeholder: 'db.example.com:5432' },
+  adoptTimeoutSec: { kind: 'duration', unit: 's' },
+  requestTimeoutMs: { kind: 'duration', unit: 'ms' },
+  manifestCacheMin: { kind: 'duration', unit: 'min' },
+  indexRefreshSec: { kind: 'duration', unit: 's' },
+  logKeepDays: { kind: 'number', unit: 'days' },
+  logPageSize: { kind: 'number', unit: 'rows' },
+};
+
+function range(k: NumberKey): { min: number; max: number } {
+  const inner = (
+    SettingsSchema.shape[k] as unknown as { removeDefault(): { minValue: number; maxValue: number } }
+  ).removeDefault();
+  return { min: inner.minValue, max: inner.maxValue };
 }
 
-/** Free text for genuinely new values (an organisation name, a host); saves on blur or Enter. */
-function TextSetting({
-  k,
-  label,
-  help,
-  placeholder,
-}: {
-  k: 'githubOrg' | 'pgMemberHost';
-  label: string;
-  help: string;
-  placeholder: string;
-}) {
-  const { settings, updateSettings } = useApp();
-  const [value, setValue] = useState(settings[k]);
-  useEffect(() => setValue(settings[k]), [settings, k]);
-  const commit = () => {
-    const v = value.trim();
-    if (v !== settings[k]) void updateSettings({ [k]: v });
-  };
-  return (
-    <FormControl>
-      <FormControl.Label>{label}</FormControl.Label>
-      <TextInput
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => e.key === 'Enter' && commit()}
-        block
+/** `90 s`, `5 min`, `24 h`: a stored duration value in words. */
+function humanSeconds(seconds: number): string {
+  if (seconds >= 3600 && seconds % 3600 === 0) return `${seconds / 3600} h`;
+  if (seconds >= 60 && seconds % 60 === 0) return `${seconds / 60} min`;
+  return `${seconds} s`;
+}
+
+const toSeconds = (stored: number, unit: DurationUnit) => Math.round(stored * UNIT_SECONDS[unit]);
+
+/** Turns the text a settings row sends into the stored value, or a reason why it cannot be saved. */
+function parse(key: keyof SettingsT, raw: string): { value: string | number } | { error: string } {
+  const spec = SPECS[key];
+  if (!spec) return { error: `Unknown setting ${key}` };
+  if (spec.kind === 'text') return { value: raw.trim() };
+  const n = Number(raw);
+  if (raw.trim() === '' || !Number.isFinite(n)) return { error: 'Enter a number' };
+  const { min, max } = range(key as NumberKey);
+  if (spec.kind === 'number') {
+    if (!Number.isInteger(n) || n < min || n > max) return { error: `Whole number from ${min} to ${max}` };
+    return { value: n };
+  }
+  const stored = n / UNIT_SECONDS[spec.unit];
+  const words = `from ${humanSeconds(toSeconds(min, spec.unit))} to ${humanSeconds(toSeconds(max, spec.unit))}`;
+  if (!Number.isInteger(stored))
+    return { error: `Whole ${spec.unit === 'min' ? 'minutes' : 'seconds'}, ${words}` };
+  if (stored < min || stored > max) return { error: `Pick a value ${words}` };
+  return { value: stored };
+}
+
+/** One auto-saved row: duration (with unit select), number (with unit) or text. */
+function Row({ k, label, help }: { k: keyof SettingsT; label: string; help: string }) {
+  const { settings } = useApp();
+  const spec = SPECS[k];
+  if (!spec) return null;
+  const id = `s-${k}`;
+  const stored = settings[k];
+  let control: React.ReactNode;
+  if (spec.kind === 'duration') {
+    control = (
+      <Ui.DurationInput
+        id={id}
+        label={label}
+        size="sm"
+        data-setting={k}
+        defaultValue={toSeconds(stored as number, spec.unit)}
       />
-      <FormControl.Caption>{help}</FormControl.Caption>
-    </FormControl>
+    );
+  } else if (spec.kind === 'number') {
+    const { min, max } = range(k as NumberKey);
+    control = (
+      <Ui.InputGroup data-size="sm">
+        <Ui.Input
+          id={id}
+          type="number"
+          size="sm"
+          min={min}
+          max={max}
+          step={1}
+          data-setting={k}
+          defaultValue={String(stored)}
+        />
+        <Ui.InputAddon>{spec.unit}</Ui.InputAddon>
+      </Ui.InputGroup>
+    );
+  } else {
+    control = (
+      <Ui.Input
+        id={id}
+        size="sm"
+        data-setting={k}
+        defaultValue={String(stored)}
+        placeholder={spec.placeholder}
+      />
+    );
+  }
+  return (
+    <Ui.SettingsRow
+      label={label}
+      htmlFor={id}
+      help={{ tone: 'info', label: `About ${label.toLowerCase()}`, children: <p>{help}</p> }}
+    >
+      {control}
+    </Ui.SettingsRow>
   );
 }
 
@@ -112,33 +142,44 @@ function PublicUrlDialog({
   onClose: () => void;
 }) {
   const [value, setValue] = useState(inst.publicUrl ?? '');
-  const save = () => onSave(value.trim() || null);
   return (
-    <Dialog
-      title="Public URL"
-      subtitle={inst.label || inst.baseUrl}
+    <Ui.Dialog
+      open
+      id="public-url"
+      title={`Public URL of ${inst.label || inst.baseUrl}`}
       onClose={onClose}
-      footerButtons={[
-        { content: 'Cancel', onClick: onClose },
-        { content: 'Save', buttonType: 'primary', onClick: save },
-      ]}
+      footer={
+        <>
+          <Ui.Button type="button" data-dialog-close="">
+            Cancel
+          </Ui.Button>
+          <Ui.Button type="submit" form="public-url-form" variant="primary">
+            Save
+          </Ui.Button>
+        </>
+      }
     >
-      <FormControl>
-        <FormControl.Label>Public URL</FormControl.Label>
-        <TextInput
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && save()}
-          placeholder={inst.baseUrl}
-          type="url"
-          block
-        />
-        <FormControl.Caption>
-          Where GitHub and browsers reach this instance, if different from {inst.baseUrl}. Empty = the address
-          the member reports, else the base URL.
-        </FormControl.Caption>
-      </FormControl>
-    </Dialog>
+      <Ui.Form
+        id="public-url-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSave(value.trim() || null);
+        }}
+      >
+        <Ui.Field
+          label="Public URL"
+          hint={`Where GitHub and browsers reach this instance, if different from ${inst.baseUrl}. Empty = the address the member reports, else the base URL.`}
+        >
+          <Ui.Input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={inst.baseUrl}
+            type="url"
+            autoFocus
+          />
+        </Ui.Field>
+      </Ui.Form>
+    </Ui.Dialog>
   );
 }
 
@@ -191,17 +232,17 @@ function Instances() {
   };
 
   const remove = async (inst: Instance) => {
-    const ok = await confirm({
-      title: 'Remove instance?',
-      content: `Octoforge stops watching ${inst.baseUrl}. The instance itself keeps running and keeps its credentials.`,
-      confirmButtonContent: 'Remove',
-      confirmButtonType: 'danger',
-    });
+    const ok = await confirm(
+      'Remove instance?',
+      `Octoforge stops watching ${inst.baseUrl}. The instance itself keeps running and keeps its credentials.`,
+      { label: 'Remove' },
+    );
     if (!ok) return;
     const before = instances.data;
     instances.setData((all) => (all ?? []).filter((i) => i.id !== inst.id));
     try {
       await api.removeInstance(inst.id);
+      toast('Instance removed', { description: inst.baseUrl });
     } catch (err) {
       instances.setData(before);
       toast('Instance not removed', { description: (err as Error).message, variant: 'critical' });
@@ -210,110 +251,117 @@ function Instances() {
 
   const list = instances.data ?? [];
   return (
-    <Section title="Instances">
-      <p className="fg-muted section-lead">
+    <Section title="Instances" id="instances">
+      <p className="t-muted">
         Base URLs of running members. Octoforge reads their manifest and health, and delivers credentials and
         database settings to them. A public URL is where GitHub sends webhooks, when the base URL is only
         reachable on your network.
       </p>
       {list.length > 0 ? (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Member</th>
-              <th>Base URL</th>
-              <th>Public URL</th>
-              <th>Label</th>
-              <th aria-label="Actions" />
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((i) => (
-              <tr key={i.id}>
-                <td className="mono">{i.member}</td>
-                <td>
-                  <Link href={i.baseUrl} target="_blank" rel="noreferrer">
-                    {i.baseUrl}
-                  </Link>
-                </td>
-                <td>
-                  {i.publicUrl ? (
-                    <Link href={i.publicUrl} target="_blank" rel="noreferrer">
-                      {i.publicUrl}
-                    </Link>
-                  ) : (
-                    <span className="fg-muted">not set</span>
-                  )}
-                </td>
-                <td>{i.label || <span className="fg-muted">none</span>}</td>
-                <td className="cell-actions">
-                  <Tooltip text="Edit public URL" direction="w">
-                    <IconButton
-                      icon={PencilIcon}
-                      aria-label={`Edit public URL of ${i.baseUrl}`}
-                      variant="invisible"
-                      size="small"
-                      onClick={() => setEditing(i)}
-                    />
-                  </Tooltip>
-                  <Tooltip text="Remove" direction="w">
-                    <IconButton
-                      icon={TrashIcon}
-                      aria-label={`Remove ${i.baseUrl}`}
-                      variant="invisible"
-                      size="small"
-                      onClick={() => void remove(i)}
-                    />
-                  </Tooltip>
-                </td>
+        <Ui.Table.Wrap>
+          <Ui.Table variant="data">
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Base URL</th>
+                <th>Public URL</th>
+                <th>Label</th>
+                <th className="t-col-actions">
+                  <span className="t-visually-hidden">Actions</span>
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {list.map((i) => (
+                <tr key={i.id}>
+                  <td className="t-mono">{i.member}</td>
+                  <td>
+                    <a href={i.baseUrl} target="_blank" rel="noreferrer">
+                      {i.baseUrl}
+                    </a>
+                  </td>
+                  <td>
+                    {i.publicUrl ? (
+                      <a href={i.publicUrl} target="_blank" rel="noreferrer">
+                        {i.publicUrl}
+                      </a>
+                    ) : (
+                      <span className="t-muted">not set</span>
+                    )}
+                  </td>
+                  <td>{i.label || <span className="t-muted">none</span>}</td>
+                  <td className="t-col-actions">
+                    <Ui.Button
+                      type="button"
+                      iconOnly
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Edit public URL of ${i.baseUrl}`}
+                      tip="Edit public URL"
+                      tipAt="left"
+                      onClick={() => setEditing(i)}
+                    >
+                      <Icon name="pencil" />
+                    </Ui.Button>
+                    <Ui.Button
+                      type="button"
+                      iconOnly
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Remove ${i.baseUrl}`}
+                      tip="Remove"
+                      tipAt="left"
+                      onClick={() => void remove(i)}
+                    >
+                      <Icon name="trash" />
+                    </Ui.Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Ui.Table>
+        </Ui.Table.Wrap>
       ) : (
-        !instances.loading && <p className="fg-muted">No instance yet: every member shows as not deployed.</p>
+        !instances.loading && (
+          <Ui.EmptyState size="sm" icon="bi-box-seam" title="No instance yet">
+            <p>Every member shows as not deployed. Add the first one below.</p>
+          </Ui.EmptyState>
+        )
       )}
-      <form className="instance-form" onSubmit={(e) => void add(e)}>
-        <FormControl>
-          <FormControl.Label>Member</FormControl.Label>
-          <Select value={chosen} onChange={(e) => setMember(e.target.value)} disabled={!names.length}>
+      <Ui.Form className="instance-form" onSubmit={(e) => void add(e)}>
+        <Ui.Field label="Member">
+          <Ui.Select value={chosen} onChange={(e) => setMember(e.target.value)} disabled={!names.length}>
             {names.map((n) => (
-              <Select.Option key={n} value={n}>
+              <option key={n} value={n}>
                 {n}
-              </Select.Option>
+              </option>
             ))}
-          </Select>
-        </FormControl>
-        <FormControl required>
-          <FormControl.Label>Base URL</FormControl.Label>
-          <TextInput
+          </Ui.Select>
+        </Ui.Field>
+        <Ui.Field label="Base URL" hint="Where Octoforge calls the member API.">
+          <Ui.Input
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
             placeholder="https://tool.example.com"
             type="url"
-            block
+            required
           />
-          <FormControl.Caption>Where Octoforge calls the member API.</FormControl.Caption>
-        </FormControl>
-        <FormControl>
-          <FormControl.Label>Public URL</FormControl.Label>
-          <TextInput
+        </Ui.Field>
+        <Ui.Field label="Public URL" hint={PUBLIC_URL_HELP}>
+          <Ui.Input
             value={publicUrl}
             onChange={(e) => setPublicUrl(e.target.value)}
             placeholder="optional"
             type="url"
-            block
           />
-          <FormControl.Caption>{PUBLIC_URL_HELP}</FormControl.Caption>
-        </FormControl>
-        <FormControl>
-          <FormControl.Label>Label</FormControl.Label>
-          <TextInput value={label} onChange={(e) => setLabel(e.target.value)} placeholder="optional" block />
-        </FormControl>
-        <Button type="submit" leadingVisual={PlusIcon} disabled={busy || !chosen || !baseUrl.trim()}>
-          {busy ? 'Adding…' : 'Add'}
-        </Button>
-      </form>
+        </Ui.Field>
+        <Ui.Field label="Label">
+          <Ui.Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="optional" />
+        </Ui.Field>
+        <Ui.Button type="submit" busy={busy} disabled={!chosen || !baseUrl.trim()}>
+          <Icon name="plus-lg" /> {busy ? 'Adding…' : 'Add'}
+        </Ui.Button>
+      </Ui.Form>
       {editing && (
         <PublicUrlDialog
           inst={editing}
@@ -352,132 +400,157 @@ function Switcher() {
     }
   };
   return (
-    <Section title="Tool switcher">
-      <p className="fg-muted section-lead">
+    <>
+      <p className="t-muted">
         Octoforge sends every instance the list of tools (Octoforge and one address per member), so each tool
         can link to the others. It sends the list when an instance changes, at start-up and on the schedule
         below.
       </p>
-      <div className="settings-grid">
-        <NumberSetting
-          k="siblingsResendMin"
-          label="Resend sibling list"
-          unit="min"
-          help="Minutes between two pushes, so a restarted member gets its switcher back (5 to 1440)."
-        />
-        <FormControl>
-          <FormControl.Label>Send now</FormControl.Label>
-          <Button
-            leadingVisual={PaperAirplaneIcon}
-            onClick={() => void sendNow()}
-            disabled={busy || Boolean(missing)}
-          >
-            {busy ? 'Sending…' : 'Send sibling list now'}
-          </Button>
-          <FormControl.Caption>
-            {missing
-              ? `Set ${missing} in .env to send the list.`
-              : 'Also retries instances that had no switcher.'}
-          </FormControl.Caption>
-        </FormControl>
-      </div>
-    </Section>
+      <Row
+        k="siblingsResendMin"
+        label="Resend sibling list"
+        help="Time between two pushes, so a restarted member gets its switcher back (5 min to 24 h)."
+      />
+      <Ui.SettingsRow
+        label="Send now"
+        help={{
+          tone: 'info',
+          label: 'About send now',
+          children: (
+            <p>
+              {missing
+                ? `Set ${missing} in .env to send the list.`
+                : 'Sends the list to every instance at once. Also retries instances that had no switcher.'}
+            </p>
+          ),
+        }}
+      >
+        <Ui.Button
+          type="button"
+          size="sm"
+          onClick={() => void sendNow()}
+          busy={busy}
+          disabled={Boolean(missing)}
+        >
+          <Icon name="send" /> {busy ? 'Sending…' : 'Send sibling list now'}
+        </Ui.Button>
+      </Ui.SettingsRow>
+    </>
   );
 }
 
+const TABS = [
+  { id: 'instances', label: 'Instances' },
+  { id: 'switcher', label: 'Tool switcher' },
+  { id: 'credentials', label: 'Credentials' },
+  { id: 'database', label: 'Database' },
+  { id: 'network', label: 'Network and display' },
+  { id: 'appearance', label: 'Appearance' },
+] as const;
+
 export function SettingsPage() {
-  const { settings, updateSettings } = useApp();
+  const { settingsLoaded, saveSettings } = useApp();
+  const save: SaveFn = async (key, raw) => {
+    const r = parse(key as keyof SettingsT, raw);
+    if ('error' in r) return { ok: false, message: r.error };
+    return saveSettings({ [key]: r.value });
+  };
   return (
-    <Page title="Settings" lead="Saved at once; every value applies on its next use.">
+    <Page
+      title="Settings"
+      lead="Saved at once; every value applies on its next use."
+      side={
+        <Ui.Sidebar label="Settings sections">
+          {TABS.map((t) => (
+            <Ui.Sidebar.Item key={t.id} href={`#${t.id}`}>
+              {t.label}
+            </Ui.Sidebar.Item>
+          ))}
+        </Ui.Sidebar>
+      }
+    >
       <Instances />
-      <Switcher />
-      <Section title="Credentials">
-        <div className="settings-grid">
-          <NumberSetting
-            k="secretTtlMin"
-            label="Keep in memory"
-            unit="min"
-            help="How long a created App key, token or role password waits for delivery."
-          />
-          <NumberSetting
-            k="secretStoreMax"
-            label="Waiting at once"
-            unit="items"
-            help="Upper bound of that memory."
-          />
-          <NumberSetting
-            k="patExpiresDays"
-            label="Fine-grained token lifetime"
-            unit="days"
-            help="Pre-filled on GitHub's form; 0 = no expiry."
-          />
-          <TextSetting
-            k="githubOrg"
-            label="Organisation"
-            placeholder="my-org"
-            help="Offered as owner of new Apps and tokens, next to your personal account."
-          />
-        </div>
-      </Section>
-      <Section title="Database">
-        <div className="settings-grid">
-          <TextSetting
-            k="pgMemberHost"
-            label="Postgres host for members"
-            placeholder="db.example.com:5432"
-            help="Host members connect to. Empty = the host of FORGE_PG_ADMIN_URL."
-          />
-          <NumberSetting
-            k="adoptTimeoutSec"
-            label="Adoption timeout"
-            unit="s"
-            help="How long the first instance may take to copy its rows."
-          />
-        </div>
-      </Section>
-      <Section title="Network and display">
-        <div className="settings-grid">
-          <NumberSetting
-            k="requestTimeoutMs"
-            label="Request timeout"
-            unit="s"
-            scale={1000}
-            help="Every call to an instance or to GitHub."
-          />
-          <NumberSetting
-            k="manifestCacheMin"
-            label="Manifest cache"
-            unit="min"
-            help="Reuse of a read manifest."
-          />
-          <NumberSetting
-            k="indexRefreshSec"
-            label="Index refresh"
-            unit="s"
-            help="Health refresh on the members page."
-          />
-          <NumberSetting
-            k="logKeepDays"
-            label="Keep log"
-            unit="days"
-            help="Older delivery and adoption rows are deleted."
-          />
-          <NumberSetting k="logPageSize" label="Log page" unit="rows" help="Rows per page on the log." />
-          <FormControl>
-            <FormControl.Label>Theme</FormControl.Label>
-            <Select
-              value={settings.theme}
-              onChange={(e) => void updateSettings({ theme: e.target.value as Theme }, { silent: true })}
+      {!settingsLoaded ? (
+        <Loading>Loading settings…</Loading>
+      ) : (
+        <Ui.Settings save={save} className="t-stack">
+          <Section title="Tool switcher" id="switcher">
+            <Switcher />
+          </Section>
+          <Section title="Credentials" id="credentials">
+            <Row
+              k="secretTtlMin"
+              label="Keep in memory"
+              help="How long a created App key, token or role password waits for delivery."
+            />
+            <Row k="secretStoreMax" label="Waiting at once" help="Upper bound of that memory." />
+            <Row
+              k="patExpiresDays"
+              label="Fine-grained token lifetime"
+              help="Pre-filled on GitHub's form; 0 = no expiry."
+            />
+            <Row
+              k="githubOrg"
+              label="Organisation"
+              help="Offered as owner of new Apps and tokens, next to your personal account."
+            />
+          </Section>
+          <Section title="Database" id="database">
+            <Row
+              k="pgMemberHost"
+              label="Postgres host for members"
+              help="Host members connect to. Empty = the host of FORGE_PG_ADMIN_URL."
+            />
+            <Row
+              k="adoptTimeoutSec"
+              label="Adoption timeout"
+              help="How long the first instance may take to copy its rows."
+            />
+          </Section>
+          <Section title="Network and display" id="network">
+            <Row
+              k="requestTimeoutMs"
+              label="Request timeout"
+              help="Every call to an instance or to GitHub (whole seconds)."
+            />
+            <Row
+              k="manifestCacheMin"
+              label="Manifest cache"
+              help="Reuse of a read manifest; 0 = read it every time."
+            />
+            <Row k="indexRefreshSec" label="Index refresh" help="Health refresh on the members page." />
+            <Row k="logKeepDays" label="Keep log" help="Older delivery and adoption rows are deleted." />
+            <Row k="logPageSize" label="Log page" help="Rows per page on the log." />
+          </Section>
+          <Section title="Appearance" id="appearance">
+            <Ui.SettingsRow
+              label="Skin"
+              help={{
+                tone: 'info',
+                label: 'About skin',
+                children: (
+                  <p>
+                    The design system the UI wears: Primer, Bootstrap, Pico and more. The sun/moon button in
+                    the footer switches dark and light.
+                  </p>
+                ),
+              }}
             >
-              {THEMES.map((t) => (
-                <Select.Option key={t} value={t}>
-                  {THEME_LABELS[t]}
-                </Select.Option>
-              ))}
-            </Select>
-          </FormControl>
-        </div>
-      </Section>
+              <Ui.Pickers parts={['skin']} size="sm" />
+            </Ui.SettingsRow>
+            <Ui.SettingsRow
+              label="Palette"
+              help={{
+                tone: 'info',
+                label: 'About palette',
+                children: <p>The colours of the UI. Every palette has a dark and a light mode.</p>,
+              }}
+            >
+              <Ui.Pickers parts={['palette']} size="sm" />
+            </Ui.SettingsRow>
+          </Section>
+        </Ui.Settings>
+      )}
     </Page>
   );
 }

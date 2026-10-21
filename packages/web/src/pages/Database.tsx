@@ -1,9 +1,8 @@
 import type { AdoptResult, Engine, InstanceStatus, MemberCard } from '@octoforge/shared';
-import { AlertIcon, CheckIcon, DatabaseIcon, UndoIcon } from '@primer/octicons-react';
-import { Banner, Button, Dialog, FormControl, Label, Spinner, TextInput, useConfirm } from '@primer/react';
 import { useEffect, useState } from 'react';
+import { Ui, useConfirm } from 'tailor-react';
 import { api } from '../api';
-import { Page, Section, StatusDot } from '../components/Page';
+import { Icon, Loading, Page, Section, StatusDot } from '../components/Page';
 import { useApp } from '../hooks/useApp';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../hooks/useToast';
@@ -14,22 +13,21 @@ const ENGINE_LABEL: Record<Engine, string> = { postgres: 'Postgres', sqlite: 'SQ
 function Results({ results }: { results: AdoptResult[] }) {
   const restart = results.some((r) => r.ok && r.restartRequired !== false);
   return (
-    <div className="stack">
+    <Ui.Stack gap="3">
       {restart && (
-        <Banner
-          variant="warning"
-          title="Restart required"
-          description="Restart every instance that took the new database: it keeps using the old one until then."
-        />
+        <Ui.Alert tone="warning" icon="bi-exclamation-triangle">
+          <strong>Restart required.</strong> Restart every instance that took the new database: it keeps using
+          the old one until then.
+        </Ui.Alert>
       )}
-      <ul className="result-list">
+      <ul className="result-list t-plain-list">
         {results.map((r) => (
           <li key={r.instance.id} className={r.ok ? 'fg-success' : 'fg-danger'}>
-            {r.ok ? <CheckIcon size={14} /> : <AlertIcon size={14} />}{' '}
+            <Icon name={r.ok ? 'check-lg' : 'exclamation-triangle'} />{' '}
             {r.instance.label || hostOf(r.instance.baseUrl)}
             {r.copy ? ' (copied rows)' : ''}: {r.message}
             {r.tables && (
-              <span className="fg-muted mono">
+              <span className="t-muted t-mono t-small">
                 {' '}
                 {Object.entries(r.tables)
                   .map(([t, n]) => `${t} ${n}`)
@@ -39,7 +37,7 @@ function Results({ results }: { results: AdoptResult[] }) {
           </li>
         ))}
       </ul>
-    </div>
+    </Ui.Stack>
   );
 }
 
@@ -54,46 +52,51 @@ function PostgresAdoptDialog({
   onClose: () => void;
 }) {
   const [password, setPassword] = useState('');
-  const submit = () => onAdopt(password);
+  const formId = `adopt-${card.name}`;
   return (
-    <Dialog
+    <Ui.Dialog
+      open
+      id={`${formId}-dlg`}
       title={`Move ${card.title} to Postgres?`}
       onClose={onClose}
-      footerButtons={[
-        { content: 'Cancel', onClick: onClose },
-        { content: 'Adopt', buttonType: 'primary', onClick: submit },
-      ]}
+      footer={
+        <>
+          <Ui.Button type="button" onClick={onClose}>
+            Cancel
+          </Ui.Button>
+          <Ui.Button type="submit" form={formId} variant="primary">
+            Adopt
+          </Ui.Button>
+        </>
+      }
     >
-      <div className="stack">
+      <Ui.Form
+        id={formId}
+        className="t-stack"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onAdopt(password);
+        }}
+      >
         <p>
           The first instance copies every row to schema "{card.name}" in the shared Postgres database and
           compares the counts; the others switch without a copy. The old database stays untouched for a
           rollback.
         </p>
-        <FormControl>
-          <FormControl.Label>Current password (only when the member's role already exists)</FormControl.Label>
-          <TextInput
+        <Ui.Field
+          label="Current password (only when the member's role already exists)"
+          hint={`Leave empty when Octoforge creates the role "${card.name}" or created it before. If the role already exists for the member's own database, enter its current password: it stays unchanged, so the member's own DATABASE_URL keeps working. Octoforge passes it to the member once and does not store it.`}
+        >
+          <Ui.Input
             type="password"
             autoComplete="off"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                submit();
-              }
-            }}
-            block
+            autoFocus
           />
-          <FormControl.Caption>
-            Leave empty when Octoforge creates the role "{card.name}" or created it before. If the role
-            already exists for the member's own database, enter its current password: it stays unchanged, so
-            the member's own DATABASE_URL keeps working. Octoforge passes it to the member once and does not
-            store it.
-          </FormControl.Caption>
-        </FormControl>
-      </div>
-    </Dialog>
+        </Ui.Field>
+      </Ui.Form>
+    </Ui.Dialog>
   );
 }
 
@@ -134,21 +137,20 @@ function MemberDatabase({ card }: { card: MemberCard }) {
       setAsking(true);
       return;
     }
-    const ok = await confirm({
-      title: `Move ${card.title} to ${ENGINE_LABEL[engine]}?`,
-      content: `The first instance copies every row to ${capabilities?.sharedData}/${card.name}.db and compares the counts; the others switch without a copy. The old database stays untouched for a rollback.`,
-      confirmButtonContent: 'Adopt',
-    });
+    const ok = await confirm(
+      `Move ${card.title} to ${ENGINE_LABEL[engine]}?`,
+      `The first instance copies every row to ${capabilities?.sharedData}/${card.name}.db and compares the counts; the others switch without a copy. The old database stays untouched for a rollback.`,
+      { label: 'Adopt', danger: false },
+    );
     if (ok) await run(engine);
   };
 
   const release = async (s: InstanceStatus) => {
-    const ok = await confirm({
-      title: 'Go back to the own database?',
-      content: `${hostOf(s.instance.baseUrl)} drops the adopted database setting and uses its DATABASE_URL after the next restart. Rows written since the adoption stay in the shared database only.`,
-      confirmButtonContent: 'Release',
-      confirmButtonType: 'danger',
-    });
+    const ok = await confirm(
+      'Go back to the own database?',
+      `${hostOf(s.instance.baseUrl)} drops the adopted database setting and uses its DATABASE_URL after the next restart. Rows written since the adoption stay in the shared database only.`,
+      { label: 'Release' },
+    );
     if (!ok) return;
     try {
       const r = await api.release(card.name, s.instance.id);
@@ -163,94 +165,99 @@ function MemberDatabase({ card }: { card: MemberCard }) {
     <Section
       title={
         <span className="cell-inline">
-          <DatabaseIcon /> {card.title}
+          <Icon name="database" /> {card.title}
         </span>
       }
     >
-      <div className="card-box stack">
-        <div className="facts">
-          <div>
-            <span className="fg-muted">Engines</span>
-            <div className="label-row">
-              {db ? db.engines.map((e) => <Label key={e}>{ENGINE_LABEL[e]}</Label>) : <span>unknown</span>}
-              {db?.schema && <Label variant="accent">named schema</Label>}
-            </div>
-          </div>
-        </div>
-        {card.instances.length === 0 ? (
-          <p className="fg-muted">Not deployed: add an instance in Settings.</p>
-        ) : status.loading && !status.data ? (
-          <Spinner size="small" />
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Instance</th>
-                <th>Engine</th>
-                <th>Schema</th>
-                <th>Source</th>
-                <th aria-label="Actions" />
-              </tr>
-            </thead>
-            <tbody>
-              {status.data?.map((s) => (
-                <tr key={s.instance.id}>
-                  <td>
-                    <span className="cell-inline">
-                      <StatusDot up={s.ok} label={s.ok ? 'answers' : 'no answer'} />
-                      {s.instance.label || hostOf(s.instance.baseUrl)}
-                    </span>
-                  </td>
-                  {s.ok ? (
-                    <>
-                      <td>{s.status?.database?.engine ?? <span className="fg-muted">unknown</span>}</td>
-                      <td className="mono">{s.status?.database?.schema ?? '—'}</td>
-                      <td>{s.status?.database ? sourceLabel(s.status.database.source) : '—'}</td>
-                    </>
-                  ) : (
-                    <td colSpan={3} className="fg-danger">
-                      {s.error}
-                    </td>
-                  )}
-                  <td className="cell-actions">
-                    {s.status?.database?.source === 'octoforge' && (
-                      <Button
-                        size="small"
-                        variant="invisible"
-                        leadingVisual={UndoIcon}
-                        onClick={() => void release(s)}
-                      >
-                        Release
-                      </Button>
-                    )}
-                  </td>
-                </tr>
+      <Ui.Card>
+        <Ui.Card.Body className="t-stack">
+          <Ui.Facts>
+            <dt>Engines</dt>
+            <dd className="label-row">
+              {db ? (
+                db.engines.map((e) => <Ui.Badge key={e}>{ENGINE_LABEL[e]}</Ui.Badge>)
+              ) : (
+                <span>unknown</span>
+              )}
+              {db?.schema && <Ui.Badge tone="accent">named schema</Ui.Badge>}
+            </dd>
+          </Ui.Facts>
+          {card.instances.length === 0 ? (
+            <p className="t-muted">Not deployed: add an instance in Settings.</p>
+          ) : status.loading && !status.data ? (
+            <Loading />
+          ) : (
+            <Ui.Table.Wrap>
+              <Ui.Table variant="data">
+                <thead>
+                  <tr>
+                    <th>Instance</th>
+                    <th>Engine</th>
+                    <th>Schema</th>
+                    <th>Source</th>
+                    <th className="t-col-actions">
+                      <span className="t-visually-hidden">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {status.data?.map((s) => (
+                    <tr key={s.instance.id}>
+                      <td>
+                        <span className="cell-inline">
+                          <StatusDot up={s.ok} label={s.ok ? 'answers' : 'no answer'} />
+                          {s.instance.label || hostOf(s.instance.baseUrl)}
+                        </span>
+                      </td>
+                      {s.ok ? (
+                        <>
+                          <td>{s.status?.database?.engine ?? <span className="t-muted">unknown</span>}</td>
+                          <td className="t-mono">{s.status?.database?.schema ?? '—'}</td>
+                          <td>{s.status?.database ? sourceLabel(s.status.database.source) : '—'}</td>
+                        </>
+                      ) : (
+                        <td colSpan={3} className="fg-danger">
+                          {s.error}
+                        </td>
+                      )}
+                      <td className="t-col-actions">
+                        {s.status?.database?.source === 'octoforge' && (
+                          <Ui.Button type="button" size="sm" variant="ghost" onClick={() => void release(s)}>
+                            <Icon name="arrow-counterclockwise" /> Release
+                          </Ui.Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Ui.Table>
+            </Ui.Table.Wrap>
+          )}
+          {card.instances.length > 0 && db && (
+            <Ui.Cluster gap="2">
+              {available.map((e) => (
+                <Ui.Button
+                  key={e}
+                  type="button"
+                  onClick={() => void adopt(e)}
+                  busy={busy === e}
+                  disabled={busy !== null}
+                >
+                  {busy === e ? <Ui.Spinner size="sm" label={null} /> : <Icon name="database" />} Adopt into{' '}
+                  {ENGINE_LABEL[e]}
+                </Ui.Button>
               ))}
-            </tbody>
-          </table>
-        )}
-        {card.instances.length > 0 && db && (
-          <div className="button-row">
-            {available.map((e) => (
-              <Button
-                key={e}
-                onClick={() => void adopt(e)}
-                disabled={busy !== null}
-                leadingVisual={busy === e ? () => <Spinner size="small" srText={null} /> : DatabaseIcon}
-              >
-                Adopt into {ENGINE_LABEL[e]}
-              </Button>
-            ))}
-            {!available.length && (
-              <span className="fg-muted small">
-                No shared engine fits: set FORGE_PG_ADMIN_URL or OCTOFORGE_SHARED_DATA for an engine this
-                member supports.
-              </span>
-            )}
-          </div>
-        )}
-        {results && <Results results={results} />}
-      </div>
+              {!available.length && (
+                <span className="t-muted t-small">
+                  No shared engine fits: set FORGE_PG_ADMIN_URL or OCTOFORGE_SHARED_DATA for an engine this
+                  member supports.
+                </span>
+              )}
+            </Ui.Cluster>
+          )}
+          {results && <Results results={results} />}
+        </Ui.Card.Body>
+      </Ui.Card>
       {asking && (
         <PostgresAdoptDialog
           card={card}
@@ -277,23 +284,23 @@ export function DatabasePage() {
       lead="Move members into one shared database: one schema per member on Postgres, or one file per member in a shared directory."
     >
       {capabilities && (
-        <div className="facts card-box">
-          <div>
-            <span className="fg-muted">Postgres</span>
-            <div>{capabilities.postgres ? 'FORGE_PG_ADMIN_URL set' : 'not configured'}</div>
-          </div>
-          <div>
-            <span className="fg-muted">SQLite directory</span>
-            <div className="mono">{capabilities.sharedData ?? 'not configured'}</div>
-          </div>
-        </div>
+        <Ui.Card>
+          <Ui.Card.Body>
+            <Ui.Facts>
+              <dt>Postgres</dt>
+              <dd>{capabilities.postgres ? 'FORGE_PG_ADMIN_URL set' : 'not configured'}</dd>
+              <dt>SQLite directory</dt>
+              <dd className="t-mono">{capabilities.sharedData ?? 'not configured'}</dd>
+            </Ui.Facts>
+          </Ui.Card.Body>
+        </Ui.Card>
       )}
-      {members.loading && !members.data && <Spinner />}
+      {members.loading && !members.data && <Loading />}
       {cards.map((c) => (
         <MemberDatabase key={c.name} card={c} />
       ))}
       {without.length > 0 && (
-        <p className="fg-muted">
+        <p className="t-muted">
           Without a database section in their manifest: {without.map((c) => c.name).join(', ')}.
         </p>
       )}

@@ -1,8 +1,7 @@
-import { Spinner } from '@primer/react';
-import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Ui } from 'tailor-react';
 import { api, onAuthError } from './api';
-import { AppProvider, useApp } from './hooks/useApp';
-import { ToastProvider } from './hooks/useToast';
+import { AppProvider } from './hooks/useApp';
 import { CredentialsPage } from './pages/Credentials';
 import { DatabasePage } from './pages/Database';
 import { GitHubAppPage } from './pages/GitHubApp';
@@ -11,7 +10,7 @@ import { LogPage } from './pages/Log';
 import { LoginPage } from './pages/Login';
 import { SettingsPage } from './pages/Settings';
 import { useRoute } from './router';
-import { readCachedTheme, ThemeRoot } from './theme';
+import { ThemeSync } from './theme';
 
 type Auth = { state: 'loading' } | { state: 'login' } | { state: 'ready'; required: boolean };
 
@@ -24,12 +23,6 @@ function Routes() {
   if (route.path === '/database') return <DatabasePage />;
   if (route.path === '/log') return <LogPage />;
   return <IndexPage />;
-}
-
-/** Applies the server-side theme once settings arrive; the cached one covers the first paint. */
-function Themed({ children }: { children: ReactNode }) {
-  const { settings, settingsLoaded } = useApp();
-  return <ThemeRoot theme={settingsLoaded ? settings.theme : readCachedTheme()}>{children}</ThemeRoot>;
 }
 
 export function App() {
@@ -49,29 +42,20 @@ export function App() {
   }, [check]);
   useEffect(() => onAuthError(() => setAuth({ state: 'login' })), []);
 
-  if (auth.state === 'loading') {
-    return (
-      <ThemeRoot theme={readCachedTheme()}>
-        <div className="app-loading">
-          <Spinner srText="Loading" />
-        </div>
-      </ThemeRoot>
-    );
-  }
-  if (auth.state === 'login') {
-    return (
-      <ThemeRoot theme={readCachedTheme()}>
-        <LoginPage onLoggedIn={() => void check()} />
-      </ThemeRoot>
-    );
-  }
   return (
-    <ToastProvider>
-      <AppProvider authRequired={auth.required} onLoggedOut={() => setAuth({ state: 'login' })}>
-        <Themed>
+    <Ui.Provider>
+      {auth.state === 'loading' ? (
+        <div className="app-center">
+          <Ui.Spinner />
+        </div>
+      ) : auth.state === 'login' ? (
+        <LoginPage onLoggedIn={() => void check()} />
+      ) : (
+        <AppProvider authRequired={auth.required} onLoggedOut={() => setAuth({ state: 'login' })}>
+          <ThemeSync />
           <Routes />
-        </Themed>
-      </AppProvider>
-    </ToastProvider>
+        </AppProvider>
+      )}
+    </Ui.Provider>
   );
 }

@@ -1,17 +1,8 @@
 import type { InstanceHealth, MemberCard, SwitcherState } from '@octoforge/shared';
-import {
-  GearIcon,
-  KeyIcon,
-  LinkExternalIcon,
-  MarkGithubIcon,
-  PackageIcon,
-  SyncIcon,
-} from '@primer/octicons-react';
-import { Button, IconButton, Label, Link, SkeletonBox, Spinner } from '@primer/react';
-import { Tooltip } from '@primer/react/next';
 import { useEffect, useState } from 'react';
+import { Ui } from 'tailor-react';
 import { api } from '../api';
-import { Page, StatusDot } from '../components/Page';
+import { Icon, LinkButton, Page, StatusDot } from '../components/Page';
 import { useApp } from '../hooks/useApp';
 import { useAsync, useInterval } from '../hooks/useAsync';
 import { useToast } from '../hooks/useToast';
@@ -34,7 +25,7 @@ function MemberIcon({ card }: { card: MemberCard }) {
   }
   return (
     <span className="member-icon member-icon-placeholder" aria-hidden>
-      <PackageIcon size={24} />
+      <Ui.Icon name="bi-box-seam" size="lg" />
     </span>
   );
 }
@@ -50,24 +41,24 @@ function InstanceLine({ h, github }: { h: InstanceHealth; github: boolean }) {
   const state = h.up ? `up, ${h.latencyMs} ms` : `down: ${h.error ?? 'no answer'}`;
   const g = h.github;
   return (
-    <li className="instance-line card-github">
+    <li className="instance-line">
       <StatusDot up={h.up} label={h.up ? 'up' : 'down'} />
-      <Link href={h.openUrl} target="_blank" rel="noreferrer" className="instance-link">
+      <a href={h.openUrl} target="_blank" rel="noreferrer" className="instance-link">
         {h.instance.label || hostOf(h.openUrl)}
-      </Link>
-      <span className={h.up ? 'fg-muted' : 'fg-danger'}>{state}</span>
+      </a>
+      <span className={h.up ? 't-muted' : 'fg-danger'}>{state}</span>
       {github && g && (
-        <span className="fg-muted cell-inline">
-          <KeyIcon size={12} /> {githubSummary(g)}
+        <span className="t-muted cell-inline">
+          <Icon name="key" /> {githubSummary(g)}
         </span>
       )}
       {github && g && g.missing.length > 0 && (
-        <Label variant="attention" size="small">
+        <Ui.Badge tone="warning" size="sm">
           missing: {g.missing.join(', ')}
-        </Label>
+        </Ui.Badge>
       )}
       {h.switcher && (
-        <small className={h.switcher.state === 'failed' ? 'fg-danger' : 'fg-muted'}>
+        <small className={h.switcher.state === 'failed' ? 'fg-danger' : 't-muted'}>
           {switcherText(h.switcher)}
         </small>
       )}
@@ -79,86 +70,72 @@ function Card({ card }: { card: MemberCard }) {
   const m = card.manifest;
   const credentialsPath = `/members/${card.name}/credentials`;
   return (
-    <article className="member-card">
-      <div className="member-card-head">
+    <Ui.Card className="member-card">
+      <Ui.Card.Header>
         <MemberIcon card={card} />
         <div className="member-card-title">
-          <h2>
+          <h2 className="t-card-title">
             {card.openUrl ? (
-              <Link href={card.openUrl} target="_blank" rel="noreferrer" className="member-card-link">
+              <a href={card.openUrl} target="_blank" rel="noreferrer" className="member-card-link">
                 {card.title}
-              </Link>
+              </a>
             ) : (
               card.title
             )}
           </h2>
-          <span className="fg-muted mono">{card.name}</span>
+          <span className="t-muted t-mono t-small">{card.name}</span>
         </div>
-        {card.instances.length === 0 && <Label variant="secondary">Not deployed</Label>}
-      </div>
-      {card.description ? (
-        <p className="member-card-desc">{card.description}</p>
-      ) : (
-        <p className="member-card-desc fg-muted">
-          No manifest yet{card.manifestError ? ` (${card.manifestError})` : ''}.
-        </p>
-      )}
-      {card.instances.length > 0 && (
-        <ul className="instance-lines">
-          {card.instances.map((h) => (
-            <InstanceLine key={h.instance.id} h={h} github={Boolean(m?.github)} />
-          ))}
-        </ul>
-      )}
-      <div className="member-card-foot">
+        {card.instances.length === 0 && (
+          <Ui.Card.Tools>
+            <Ui.Badge tone="neutral">Not deployed</Ui.Badge>
+          </Ui.Card.Tools>
+        )}
+      </Ui.Card.Header>
+      <Ui.Card.Body className="t-stack">
+        {card.description ? (
+          <p className="member-card-desc">{card.description}</p>
+        ) : (
+          <p className="member-card-desc t-muted">
+            No manifest yet{card.manifestError ? ` (${card.manifestError})` : ''}.
+          </p>
+        )}
+        {card.instances.length > 0 && (
+          <ul className="instance-lines t-plain-list">
+            {card.instances.map((h) => (
+              <InstanceLine key={h.instance.id} h={h} github={Boolean(m?.github)} />
+            ))}
+          </ul>
+        )}
+      </Ui.Card.Body>
+      <Ui.Card.Footer className="member-card-foot">
         {card.repoUrl && (
-          <Link href={card.repoUrl} target="_blank" rel="noreferrer" muted className="icon-link">
-            <MarkGithubIcon size={14} /> Repository
-          </Link>
+          <a href={card.repoUrl} target="_blank" rel="noreferrer" className="t-muted icon-link">
+            <Icon name="github" /> Repository
+          </a>
         )}
         {card.homepage && card.homepage !== card.repoUrl && (
-          <Link href={card.homepage} target="_blank" rel="noreferrer" muted className="icon-link">
-            <LinkExternalIcon size={14} /> Homepage
-          </Link>
+          <a href={card.homepage} target="_blank" rel="noreferrer" className="t-muted icon-link">
+            <Icon name="box-arrow-up-right" /> Homepage
+          </a>
         )}
         <span className="spacer" />
         {card.openUrl && (
-          <Button
-            size="small"
-            variant="primary"
-            leadingVisual={LinkExternalIcon}
-            as="a"
-            href={card.openUrl}
-            target="_blank"
-            rel="noreferrer"
-          >
+          <LinkButton href={card.openUrl} external size="sm" variant="primary" icon="box-arrow-up-right">
             Open
-          </Button>
+          </LinkButton>
         )}
         {m?.github && (
-          <Button
-            size="small"
-            leadingVisual={KeyIcon}
-            as="a"
-            href={credentialsPath}
-            onClick={linkClick(credentialsPath)}
-          >
+          <LinkButton href={credentialsPath} onClick={linkClick(credentialsPath)} size="sm" icon="key">
             Credentials
-          </Button>
+          </LinkButton>
         )}
         {card.instances.length === 0 && (
-          <Button
-            size="small"
-            leadingVisual={GearIcon}
-            as="a"
-            href="/settings"
-            onClick={linkClick('/settings')}
-          >
+          <LinkButton href="/settings" onClick={linkClick('/settings')} size="sm" icon="gear">
             Add instance
-          </Button>
+          </LinkButton>
         )}
-      </div>
-    </article>
+      </Ui.Card.Footer>
+    </Ui.Card>
   );
 }
 
@@ -195,23 +172,36 @@ export function IndexPage() {
       title="Members"
       lead="Every tool of the family, its instances and their health."
       actions={
-        <Tooltip text="Read manifests and health again" direction="w">
-          <IconButton
-            icon={refreshing ? () => <Spinner size="small" srText={null} /> : SyncIcon}
-            aria-label="Refresh"
-            onClick={() => void refresh()}
-            disabled={refreshing}
-          />
-        </Tooltip>
+        <Ui.Button
+          iconOnly
+          type="button"
+          aria-label="Refresh"
+          tip="Read manifests and health again"
+          tipAt="left"
+          busy={refreshing}
+          onClick={() => void refresh()}
+        >
+          {refreshing ? <Ui.Spinner size="sm" label={null} /> : <Icon name="arrow-repeat" />}
+        </Ui.Button>
       }
     >
       {state.error && !cards && <p className="fg-danger">Could not load members: {state.error.message}</p>}
       <div className="member-grid">
         {cards
           ? cards.map((c) => <Card key={c.name} card={c} />)
-          : [0, 1].map((i) => <SkeletonBox key={i} height="180px" className="member-card-skeleton" />)}
+          : [0, 1].map((i) => (
+              <Ui.Card key={i} className="member-card member-card-loading" aria-busy="true">
+                <Ui.Card.Body>
+                  <Ui.Spinner />
+                </Ui.Card.Body>
+              </Ui.Card>
+            ))}
       </div>
-      {cards && cards.length === 0 && <p className="fg-muted">No members: .gitmodules lists no submodule.</p>}
+      {cards && cards.length === 0 && (
+        <Ui.EmptyState icon="bi-box-seam" title="No members">
+          <p>.gitmodules lists no submodule.</p>
+        </Ui.EmptyState>
+      )}
     </Page>
   );
 }

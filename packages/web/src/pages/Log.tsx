@@ -1,9 +1,8 @@
 import type { LogEntry, LogKind } from '@octoforge/shared';
-import { AlertIcon, CheckIcon } from '@primer/octicons-react';
-import { Button, Label, SegmentedControl, Select, Spinner } from '@primer/react';
 import { useState } from 'react';
+import { Ui } from 'tailor-react';
 import { api } from '../api';
-import { Page } from '../components/Page';
+import { Icon, Loading, Page } from '../components/Page';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../hooks/useToast';
 import { absoluteTime, relativeTime } from '../lib/format';
@@ -65,92 +64,92 @@ export function LogPage() {
 
   return (
     <Page title="Log" lead="What went where, when, and whether it worked. Never a secret.">
-      <div className="filter-row">
-        <SegmentedControl aria-label="Kind">
-          {KINDS.map((k) => (
-            <SegmentedControl.Button
-              key={k.value}
-              selected={kind === k.value}
-              onClick={() => {
-                reset();
-                setKind(k.value);
-              }}
-            >
-              {k.label}
-            </SegmentedControl.Button>
+      <Ui.Toolbar label="Filter">
+        <Ui.ButtonGroup
+          filter
+          label="Kind"
+          options={KINDS}
+          value={kind}
+          onChange={(v) => {
+            reset();
+            setKind(v as LogKind | '');
+          }}
+        />
+        <label htmlFor="log-member" className="t-muted">
+          Member
+        </label>
+        <Ui.Select
+          id="log-member"
+          size="sm"
+          data-width="auto"
+          value={member}
+          onChange={(e) => {
+            reset();
+            setMember(e.target.value);
+          }}
+        >
+          <option value="">All</option>
+          {(members.data ?? []).map((m) => (
+            <option key={m.name} value={m.name}>
+              {m.name}
+            </option>
           ))}
-        </SegmentedControl>
-        <div className="inline-field">
-          <label htmlFor="log-member" className="fg-muted">
-            Member
-          </label>
-          <Select
-            id="log-member"
-            value={member}
-            onChange={(e) => {
-              reset();
-              setMember(e.target.value);
-            }}
-          >
-            <Select.Option value="">All</Select.Option>
-            {(members.data ?? []).map((m) => (
-              <Select.Option key={m.name} value={m.name}>
-                {m.name}
-              </Select.Option>
-            ))}
-          </Select>
-        </div>
-      </div>
+        </Ui.Select>
+      </Ui.Toolbar>
       {log.loading && !log.data ? (
-        <Spinner />
+        <Loading />
       ) : rows.length === 0 ? (
-        <p className="fg-muted">Nothing logged yet.</p>
+        <Ui.EmptyState size="sm" icon="bi-send" title="Nothing logged yet">
+          <p>Deliveries and adoptions show up here.</p>
+        </Ui.EmptyState>
       ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>Member</th>
-              <th>What</th>
-              <th>Target</th>
-              <th>Result</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((e) => (
-              <tr key={`${e.kind}-${e.id}`}>
-                <td>
-                  <time dateTime={e.at} className="nowrap">
-                    {relativeTime(e.at)}
-                  </time>
-                  <div className="fg-muted small nowrap">{absoluteTime(e.at)}</div>
-                </td>
-                <td className="mono">{e.member}</td>
-                <td>
-                  <Label variant={e.kind === 'delivery' ? 'accent' : 'done'}>
-                    {e.kind === 'delivery' ? 'Delivery' : 'Adoption'}
-                  </Label>{' '}
-                  {ACTION_LABEL[e.action] ?? e.action}
-                </td>
-                <td className="mono break">{e.target}</td>
-                <td>
-                  <span className={e.ok ? 'fg-success' : 'fg-danger'}>
-                    {e.ok ? <CheckIcon size={14} /> : <AlertIcon size={14} />} {e.message}
-                  </span>
-                  {Object.keys(e.detail).length > 0 && (
-                    <div className="fg-muted small mono">{detailText(e.detail)}</div>
-                  )}
-                </td>
+        <Ui.Table.Wrap>
+          <Ui.Table variant="data">
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Member</th>
+                <th>What</th>
+                <th>Target</th>
+                <th>Result</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((e) => (
+                <tr key={`${e.kind}-${e.id}`}>
+                  <td>
+                    <time dateTime={e.at} className="t-nowrap">
+                      {relativeTime(e.at)}
+                    </time>
+                    <div className="t-muted t-small t-nowrap">{absoluteTime(e.at)}</div>
+                  </td>
+                  <td className="t-mono">{e.member}</td>
+                  <td>
+                    <Ui.Badge tone={e.kind === 'delivery' ? 'accent' : 'purple'}>
+                      {e.kind === 'delivery' ? 'Delivery' : 'Adoption'}
+                    </Ui.Badge>{' '}
+                    {ACTION_LABEL[e.action] ?? e.action}
+                  </td>
+                  <td className="t-mono break">{e.target}</td>
+                  <td>
+                    <span className={e.ok ? 'fg-success' : 'fg-danger'}>
+                      <Icon name={e.ok ? 'check-lg' : 'exclamation-triangle'} /> {e.message}
+                    </span>
+                    {Object.keys(e.detail).length > 0 && (
+                      <div className="t-muted t-small t-mono">{detailText(e.detail)}</div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Ui.Table>
+        </Ui.Table.Wrap>
       )}
       {canMore && rows.length > 0 && (
         <div>
-          <Button onClick={() => void loadMore()} disabled={loadingMore}>
+          <Ui.Button type="button" onClick={() => void loadMore()} busy={loadingMore}>
             {loadingMore ? 'Loading…' : 'Older entries'}
-          </Button>
+          </Ui.Button>
         </div>
       )}
     </Page>

@@ -57,7 +57,12 @@ needs to hand the schema over.
 | Resend sibling list (`siblingsResendMin`) | 60 min | Minutes between two pushes of the sibling list to every instance (5 to 1440). Octoforge also sends it at start-up and when an instance changes. **Send sibling list now** on the Settings page sends it at once. |
 | Keep log (`logKeepDays`) | 180 days | Older delivery and adoption rows are deleted (hourly). |
 | Log page (`logPageSize`) | 100 rows | Rows per page on the log. |
-| Theme (`theme`) | system | Primer theme of the UI. |
+| Skin (`skin`) | `primer` | The design system the UI wears (Primer, Bootstrap, Pico and the other tailor skins). Picked on the Settings page, under Appearance. |
+| Palette (`palette`) | `gruvbox` | The colours of the UI. Picked on the Settings page, under Appearance. |
+| Mode (`mode`) | `auto` | `dark`, `light` or `auto` (follows the system until you press the sun/moon button in the footer). |
+
+The old `theme` setting is gone. A stored `theme` still counts as the mode until you pick one:
+`dark…` themes become `dark`, `light…` themes `light`, `auto` stays `auto`.
 
 ## Instances
 

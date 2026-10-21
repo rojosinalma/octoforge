@@ -1,5 +1,5 @@
-import { Button, FormControl, Heading, TextInput } from '@primer/react';
 import { type FormEvent, useState } from 'react';
+import { Ui } from 'tailor-react';
 import { api } from '../api';
 import { Logo } from '../components/Header';
 
@@ -24,29 +24,30 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
   };
 
   return (
-    <main className="login-page">
-      <form className="login-card" onSubmit={(e) => void submit(e)}>
-        <Heading as="h1" className="login-title">
-          <Logo size={28} /> Octoforge
-        </Heading>
-        <p className="fg-muted">Enter the password configured for this instance.</p>
-        <FormControl required>
-          <FormControl.Label>Password</FormControl.Label>
-          <TextInput
-            block
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            validationStatus={error ? 'error' : undefined}
-            autoFocus
-          />
-          {error && <FormControl.Validation variant="error">{error}</FormControl.Validation>}
-        </FormControl>
-        <Button type="submit" variant="primary" block disabled={busy || !password}>
-          {busy ? 'Signing in…' : 'Sign in'}
-        </Button>
-      </form>
+    <main className="app-center">
+      <Ui.Card className="login-card">
+        <Ui.Card.Body>
+          <Ui.Form className="t-stack" onSubmit={(e) => void submit(e)}>
+            <h1 className="t-page-title login-title">
+              <Logo size={28} /> Octoforge
+            </h1>
+            <p className="t-muted">Enter the password configured for this instance.</p>
+            <Ui.Field label="Password" error={error ?? undefined}>
+              <Ui.Input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoFocus
+              />
+            </Ui.Field>
+            <Ui.Button type="submit" variant="primary" busy={busy} disabled={!password}>
+              {busy ? 'Signing in…' : 'Sign in'}
+            </Ui.Button>
+          </Ui.Form>
+        </Ui.Card.Body>
+      </Ui.Card>
     </main>
   );
 }

@@ -1,9 +1,6 @@
-import type { Theme } from '@octoforge/shared';
-import { PaintbrushIcon, PersonIcon, SignOutIcon } from '@primer/octicons-react';
-import { ActionList, ActionMenu, Header as PrimerHeader } from '@primer/react';
+import { Ui } from 'tailor-react';
 import { useApp } from '../hooks/useApp';
 import { linkClick, useRoute } from '../router';
-import { THEME_LABELS, THEMES } from '../theme';
 
 const NAV = [
   { path: '/', label: 'Members' },
@@ -16,10 +13,10 @@ const NAV = [
 export function Logo({ size = 24 }: { size?: number }) {
   return (
     <svg aria-hidden="true" viewBox="0 0 32 32" width={size} height={size} className="wordmark-mark">
-      <rect x="1" y="1" width="30" height="30" rx="7" fill="var(--bgColor-done-emphasis)" />
+      <rect x="1" y="1" width="30" height="30" rx="7" fill="var(--t-accent)" />
       <g
         fill="none"
-        stroke="var(--fgColor-onEmphasis)"
+        stroke="var(--t-on-accent)"
         strokeWidth="2.4"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -32,72 +29,32 @@ export function Logo({ size = 24 }: { size?: number }) {
 }
 
 export function Header() {
-  const { settings, updateSettings, authRequired, logout } = useApp();
+  const { authRequired, logout } = useApp();
   const route = useRoute();
   const active = (p: string) =>
     p === '/' ? route.path === '/' || route.path.startsWith('/members/') : route.path === p;
 
   return (
-    <PrimerHeader className="app-header" aria-label="Octoforge">
-      <PrimerHeader.Item>
-        <PrimerHeader.Link href="/" onClick={linkClick('/')} className="wordmark" aria-label="Octoforge home">
-          <Logo />
-          <span>Octoforge</span>
-        </PrimerHeader.Link>
-      </PrimerHeader.Item>
-      <PrimerHeader.Item full>
-        <nav className="app-nav" aria-label="Main">
-          {NAV.map((n) => (
-            <a
-              key={n.path}
-              href={n.path}
-              onClick={linkClick(n.path)}
-              className={`app-nav-link${active(n.path) ? ' app-nav-link-active' : ''}`}
-              aria-current={active(n.path) ? 'page' : undefined}
-            >
-              {n.label}
-            </a>
-          ))}
-        </nav>
-      </PrimerHeader.Item>
-      <PrimerHeader.Item>
-        <ActionMenu>
-          <ActionMenu.Anchor>
-            <button type="button" className="avatar-button" aria-label="Account menu">
-              <PersonIcon size={20} />
-            </button>
-          </ActionMenu.Anchor>
-          <ActionMenu.Overlay width="medium" align="end">
-            <ActionList>
-              <ActionList.Group selectionVariant="single">
-                <ActionList.GroupHeading>
-                  <PaintbrushIcon /> Theme
-                </ActionList.GroupHeading>
-                {THEMES.map((t: Theme) => (
-                  <ActionList.Item
-                    key={t}
-                    selected={settings.theme === t}
-                    onSelect={() => void updateSettings({ theme: t }, { silent: true })}
-                  >
-                    {THEME_LABELS[t]}
-                  </ActionList.Item>
-                ))}
-              </ActionList.Group>
-              {authRequired && (
-                <>
-                  <ActionList.Divider />
-                  <ActionList.Item onSelect={() => void logout()}>
-                    <ActionList.LeadingVisual>
-                      <SignOutIcon />
-                    </ActionList.LeadingVisual>
-                    Sign out
-                  </ActionList.Item>
-                </>
-              )}
-            </ActionList>
-          </ActionMenu.Overlay>
-        </ActionMenu>
-      </PrimerHeader.Item>
-    </PrimerHeader>
+    <Ui.Navbar className="t-shell-nav" aria-label="Octoforge">
+      <Ui.Navbar.Brand href="/" onClick={linkClick('/')} className="wordmark" aria-label="Octoforge home">
+        <Logo />
+        <span>Octoforge</span>
+      </Ui.Navbar.Brand>
+      <Ui.Navbar.Nav aria-label="Main">
+        {NAV.map((n) => (
+          <Ui.Navbar.Link key={n.path} href={n.path} onClick={linkClick(n.path)} current={active(n.path)}>
+            {n.label}
+          </Ui.Navbar.Link>
+        ))}
+      </Ui.Navbar.Nav>
+      {authRequired && <Ui.Navbar.Sep />}
+      {authRequired && (
+        <Ui.Navbar.End>
+          <Ui.Button variant="ghost" size="sm" type="button" onClick={() => void logout()}>
+            <Ui.Icon name="bi-box-arrow-right" /> Sign out
+          </Ui.Button>
+        </Ui.Navbar.End>
+      )}
+    </Ui.Navbar>
   );
 }

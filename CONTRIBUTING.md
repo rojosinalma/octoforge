@@ -61,6 +61,22 @@ docker rm -f pg-test
 - No secret in the database, a log line or an API answer after delivery. Tests use neutral names
   (`alice`, `example.com`) and mocked `fetch`; they never call GitHub.
 
+## UI kit (tailor)
+
+The UI uses [tailor](https://github.com/rojosinalma/tailor) through its React kit, tailor-react. Two
+parts are vendored, so a fresh clone builds without tailor:
+
+- `packages/web/public/tailor/`: the core CSS, every skin and palette, the icon sprite and
+  `tailor-head.html` (the pre-paint snippet; `vite.config.ts` puts it into `index.html` at build time).
+- `vendor/tailor-react/`: the kit's source (`src/`, `package.json`, `LICENSE`, `README.md`), a Bun
+  workspace that `packages/web` depends on.
+
+Never edit these files by hand: each carries a `managed by tailor` header. They are refreshed from a
+tailor checkout with `tailor sync` (or `tailor apply packages/web --react` with the icon list), which
+writes both folders. Run `bun install` afterwards when the kit's `package.json` changed. An icon the
+UI needs must be in the sprite: add it to the `--icons` list of the apply. Octoforge's own CSS is
+`packages/web/src/app.css`: `--t-*` tokens only, no `#hex`, no `t-` prefix on its classes.
+
 ## Adding a tool
 
 1. Add the submodule and its homepage:

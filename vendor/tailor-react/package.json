@@ -1,0 +1,22 @@
+{
+  "//": "managed by tailor v0.11.0 — tailor-react — do not edit, run `tailor sync`",
+  "name": "tailor-react",
+  "version": "0.11.0",
+  "description": "React adapter for the tailor design system: the Ui.* API over the tailor markup vocabulary, every skin and palette, plus a theme switcher.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./theme": "./src/theme.tsx"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0"
+  }
+}

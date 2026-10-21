@@ -1,16 +1,14 @@
 import { z } from 'zod';
 
-export const Theme = z.enum([
-  'auto',
-  'light',
-  'light_high_contrast',
-  'light_colorblind',
-  'dark',
-  'dark_dimmed',
-  'dark_high_contrast',
-  'dark_colorblind',
-]);
-export type Theme = z.infer<typeof Theme>;
+/** Colour mode of the UI: `auto` follows the operating system until the user picks dark or light. */
+export const ThemeMode = z.enum(['auto', 'dark', 'light']);
+export type ThemeMode = z.infer<typeof ThemeMode>;
+
+/** A tailor skin or palette id. The UI offers only the ids it ships and falls back to the default for others. */
+const TailorId = z.string().regex(/^[a-z0-9-]{1,40}$/);
+
+/** The look the UI starts with (tailor skin, palette and mode). */
+export const UI_DEFAULTS = { skin: 'primer', palette: 'gruvbox', mode: 'auto' } as const;
 
 /** Every tunable lives here (settings table), read at use time; env holds bootstrap values and secrets only. */
 export const Settings = z.object({
@@ -41,7 +39,12 @@ export const Settings = z.object({
     .default(''),
   /** Minutes between two pushes of the sibling list to every instance (it is also sent on every instance change). */
   siblingsResendMin: z.number().int().min(5).max(1440).default(60),
-  theme: Theme.default('auto'),
+  /** tailor skin of the UI (its design system). */
+  skin: TailorId.default(UI_DEFAULTS.skin),
+  /** tailor palette of the UI (its colours). */
+  palette: TailorId.default(UI_DEFAULTS.palette),
+  /** Colour mode of the UI. */
+  mode: ThemeMode.default(UI_DEFAULTS.mode),
 });
 export type Settings = z.infer<typeof Settings>;
 

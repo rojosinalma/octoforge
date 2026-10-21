@@ -1,47 +1,26 @@
 import type { InstanceStatus, SharedAppView } from '@octoforge/shared';
-import {
-  AlertIcon,
-  CheckIcon,
-  KeyIcon,
-  LinkExternalIcon,
-  PaperAirplaneIcon,
-  SyncIcon,
-  TrashIcon,
-} from '@primer/octicons-react';
-import {
-  Banner,
-  Button,
-  Checkbox,
-  FormControl,
-  Label,
-  Link,
-  Select,
-  Spinner,
-  Textarea,
-  TextInput,
-  useConfirm,
-} from '@primer/react';
 import { type FormEvent, useEffect, useState } from 'react';
+import { Ui, useConfirm } from 'tailor-react';
 import { api } from '../api';
-import { Page, Section, StatusDot } from '../components/Page';
+import { Icon, LinkButton, Loading, Page, Section, StatusDot } from '../components/Page';
 import { useApp } from '../hooks/useApp';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../hooks/useToast';
 import { hostOf, publicUrlSourceLabel, relativeTime, sourceLabel } from '../lib/format';
 import { linkClick, navigate, useRoute } from '../router';
-import { Owner, postToGitHub } from './Credentials';
+import { Notice, Owner, postToGitHub } from './Credentials';
 
 type View = SharedAppView;
 type AppFacts = NonNullable<View['app']>;
 const err = (e: unknown) => (e as Error).message;
-const spin = () => <Spinner size="small" srText={null} />;
+const spin = () => <Ui.Spinner size="sm" label={null} />;
 
 function Missing({ list, prefix = 'missing' }: { list: string[]; prefix?: string }) {
   if (!list.length) return null;
   return (
-    <Label variant="attention">
+    <Ui.Badge tone="warning">
       {prefix}: {list.join(', ')}
-    </Label>
+    </Ui.Badge>
   );
 }
 
@@ -71,12 +50,11 @@ function AppFactsBox({ app, view, onView }: { app: AppFacts; view: View; onView:
     }
   };
   const forgetApp = async () => {
-    const ok = await confirm({
-      title: 'Forget the shared App?',
-      content: `Octoforge drops what it knows about ${app.slug}. The App stays on GitHub and in the members that use it.`,
-      confirmButtonContent: 'Forget',
-      confirmButtonType: 'danger',
-    });
+    const ok = await confirm(
+      'Forget the shared App?',
+      `Octoforge drops what it knows about ${app.slug}. The App stays on GitHub and in the members that use it.`,
+      { label: 'Forget' },
+    );
     if (!ok) return;
     onView(null);
     try {
@@ -87,93 +65,79 @@ function AppFactsBox({ app, view, onView }: { app: AppFacts; view: View; onView:
     }
   };
   return (
-    <div className="card-box stack">
-      <div className="pending-head">
-        <KeyIcon />
-        <strong>
-          {app.name} <span className="mono">{app.slug}</span> (id {app.id})
-        </strong>
-        <Link href={app.htmlUrl} target="_blank" rel="noreferrer" className="icon-link">
-          <LinkExternalIcon size={14} /> On GitHub
-        </Link>
-      </div>
-      <div className="facts">
-        <div>
-          <span className="fg-muted">Owner</span>
-          <div>
+    <Ui.Card>
+      <Ui.Card.Header>
+        <Ui.Card.Title>
+          <Icon name="key" />
+          <span>
+            {app.name} <span className="t-mono">{app.slug}</span> (id {app.id})
+          </span>
+        </Ui.Card.Title>
+        <Ui.Card.Tools>
+          <a href={app.htmlUrl} target="_blank" rel="noreferrer" className="icon-link">
+            <Icon name="box-arrow-up-right" /> On GitHub
+          </a>
+        </Ui.Card.Tools>
+      </Ui.Card.Header>
+      <Ui.Card.Body className="t-stack">
+        <Ui.Facts>
+          <dt>Owner</dt>
+          <dd>
             {app.owner ?? '?'} ({app.ownerType === 'Organization' ? 'organisation' : 'personal account'})
-          </div>
-        </div>
-        <div>
-          <span className="fg-muted">Installations</span>
-          <div>{app.installations.map((i) => i.account).join(', ') || 'none yet'}</div>
-        </div>
-        <div>
-          <span className="fg-muted">Events</span>
-          <div className="label-row">
-            {app.events.length ? app.events.map((e) => <Label key={e}>{e}</Label>) : <span>none</span>}
-          </div>
-        </div>
-        <div>
-          <span className="fg-muted">Read from GitHub</span>
-          <div>{relativeTime(app.checkedAt)}</div>
-        </div>
-        <div>
-          <span className="fg-muted">Key</span>
-          <div>
+          </dd>
+          <dt>Installations</dt>
+          <dd>{app.installations.map((i) => i.account).join(', ') || 'none yet'}</dd>
+          <dt>Events</dt>
+          <dd className="label-row">
+            {app.events.length ? app.events.map((e) => <Ui.Badge key={e}>{e}</Ui.Badge>) : <span>none</span>}
+          </dd>
+          <dt>Read from GitHub</dt>
+          <dd>{relativeTime(app.checkedAt)}</dd>
+          <dt>Key</dt>
+          <dd>
             {view.key
               ? `in memory, expires ${relativeTime(view.key.expiresAt)}${view.key.hasWebhookSecret ? '' : ' (no webhook secret)'}`
               : 'not in memory'}
-          </div>
-        </div>
-      </div>
-      <div className="button-row">
-        <Button
-          onClick={() => void recheck()}
-          leadingVisual={busy ? spin : SyncIcon}
-          disabled={busy || !view.key}
-        >
-          Re-check
-        </Button>
-        <Button
-          as="a"
-          href={app.installUrl}
-          target="_blank"
-          rel="noreferrer"
-          leadingVisual={LinkExternalIcon}
-        >
-          Install on another account
-        </Button>
-        <span className="spacer" />
-        {view.key && (
-          <Button variant="invisible" leadingVisual={TrashIcon} onClick={() => void forgetKey()}>
-            Forget the key
-          </Button>
+          </dd>
+        </Ui.Facts>
+        <Ui.Cluster gap="2">
+          <Ui.Button type="button" onClick={() => void recheck()} busy={busy} disabled={!view.key}>
+            {busy ? spin() : <Icon name="arrow-repeat" />} Re-check
+          </Ui.Button>
+          <LinkButton href={app.installUrl} external icon="box-arrow-up-right">
+            Install on another account
+          </LinkButton>
+          <span className="spacer" />
+          {view.key && (
+            <Ui.Button type="button" variant="ghost" onClick={() => void forgetKey()}>
+              <Icon name="trash" /> Forget the key
+            </Ui.Button>
+          )}
+          <Ui.Button type="button" variant="ghost" onClick={() => void forgetApp()}>
+            <Icon name="trash" /> Forget the App
+          </Ui.Button>
+        </Ui.Cluster>
+        {!view.key && (
+          <p className="t-muted t-small">
+            Re-check and delivery need the key: paste it again under <strong>Use an existing App</strong>.
+          </p>
         )}
-        <Button variant="invisible" leadingVisual={TrashIcon} onClick={() => void forgetApp()}>
-          Forget the App
-        </Button>
-      </div>
-      {!view.key && (
-        <p className="fg-muted small">
-          Re-check and delivery need the key: paste it again under <strong>Use an existing App</strong>.
-        </p>
-      )}
-    </div>
+      </Ui.Card.Body>
+    </Ui.Card>
   );
 }
 
 function cell(level: string | null, gap: boolean) {
-  return <td className={gap ? 'matrix-gap' : level ? '' : 'fg-muted'}>{level ?? '–'}</td>;
+  return <td className={gap ? 'matrix-gap' : level ? undefined : 't-muted'}>{level ?? '–'}</td>;
 }
 
 function Matrix({ view }: { view: View }) {
   const { matrix, members } = view;
   const installs = view.app?.installations ?? [];
-  if (!matrix.rows.length) return <p className="fg-muted">No member asks for an App permission.</p>;
+  if (!matrix.rows.length) return <p className="t-muted">No member asks for an App permission.</p>;
   return (
-    <div className="table-scroll">
-      <table className="table matrix">
+    <Ui.Table.Wrap>
+      <Ui.Table variant="data" className="matrix">
         <thead>
           <tr>
             <th>Permission</th>
@@ -195,23 +159,29 @@ function Matrix({ view }: { view: View }) {
         <tbody>
           {matrix.rows.map((r) => (
             <tr key={r.permission}>
-              <td className="mono">{r.permission}</td>
-              {view.app ? cell(r.app.level, r.app.gap) : <td className="fg-muted">?</td>}
+              <td className="t-mono">{r.permission}</td>
+              {view.app ? cell(r.app.level, r.app.gap) : <td className="t-muted">?</td>}
               {r.installations.map((c, i) => (
-                <td key={installs[i]?.id ?? i} className={c.gap ? 'matrix-gap' : c.level ? '' : 'fg-muted'}>
+                <td
+                  key={installs[i]?.id ?? i}
+                  className={c.gap ? 'matrix-gap' : c.level ? undefined : 't-muted'}
+                >
                   {c.level ?? '–'}
                 </td>
               ))}
               {r.members.map((c, i) => (
-                <td key={members[i]?.name ?? i} className={c.gap ? 'matrix-gap' : c.level ? '' : 'fg-muted'}>
+                <td
+                  key={members[i]?.name ?? i}
+                  className={c.gap ? 'matrix-gap' : c.level ? undefined : 't-muted'}
+                >
                   {c.level ?? '–'}
                 </td>
               ))}
             </tr>
           ))}
         </tbody>
-      </table>
-    </div>
+      </Ui.Table>
+    </Ui.Table.Wrap>
   );
 }
 
@@ -226,7 +196,7 @@ function UpdatePath({ app, view, onView }: { app: AppFacts; view: View; onView: 
   if (!add.length && !pendingInstalls.length) {
     return (
       <p className="fg-success">
-        <CheckIcon /> The App and every installation grant what the members need.
+        <Icon name="check-lg" /> The App and every installation grant what the members need.
       </p>
     );
   }
@@ -243,71 +213,69 @@ function UpdatePath({ app, view, onView }: { app: AppFacts; view: View; onView: 
     }
   };
   return (
-    <div className="card-box stack">
-      <strong>Update the App (no new App needed)</strong>
-      <ol className="steps">
-        {add.length > 0 && (
+    <Ui.Card>
+      <Ui.Card.Header>
+        <Ui.Card.Title>Update the App (no new App needed)</Ui.Card.Title>
+      </Ui.Card.Header>
+      <Ui.Card.Body>
+        <ol className="steps">
+          {add.length > 0 && (
+            <li>
+              <div>
+                On GitHub, add these permissions to <span className="t-mono">{app.slug}</span> and save:
+              </div>
+              <div className="label-row">
+                {add.map((p) => (
+                  <Ui.Badge key={p} tone="warning">
+                    {p}
+                  </Ui.Badge>
+                ))}
+              </div>
+              <div>
+                <LinkButton href={app.permissionsUrl} external size="sm" icon="box-arrow-up-right">
+                  Edit permissions on GitHub
+                </LinkButton>
+              </div>
+            </li>
+          )}
           <li>
+            <div>Each installation accepts the new permissions on its own page:</div>
+            <ul className="result-list t-plain-list">
+              {app.installations.map((i) => {
+                const miss = view.matrix.installationMissing[i.id] ?? [];
+                return (
+                  <li key={i.id} className="cell-inline">
+                    <a href={i.settingsUrl} target="_blank" rel="noreferrer" className="icon-link">
+                      <Icon name="box-arrow-up-right" /> {i.account}
+                    </a>
+                    {miss.length ? (
+                      <Missing list={miss} prefix="not accepted" />
+                    ) : (
+                      <span className="fg-success t-small">up to date</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </li>
+          <li>
+            <div>Then read the App again.</div>
             <div>
-              On GitHub, add these permissions to <span className="mono">{app.slug}</span> and save:
-            </div>
-            <div className="label-row">
-              {add.map((p) => (
-                <Label key={p} variant="attention">
-                  {p}
-                </Label>
-              ))}
-            </div>
-            <div>
-              <Button
-                as="a"
-                href={app.permissionsUrl}
-                target="_blank"
-                rel="noreferrer"
-                size="small"
-                leadingVisual={LinkExternalIcon}
+              <Ui.Button
+                type="button"
+                size="sm"
+                onClick={() => void recheck()}
+                busy={busy}
+                disabled={!view.key}
               >
-                Edit permissions on GitHub
-              </Button>
+                {busy ? spin() : <Icon name="arrow-repeat" />} Re-check
+              </Ui.Button>
+              {!view.key && <span className="t-muted t-small"> Needs the key in memory.</span>}
             </div>
           </li>
-        )}
-        <li>
-          <div>Each installation accepts the new permissions on its own page:</div>
-          <ul className="result-list">
-            {app.installations.map((i) => {
-              const miss = view.matrix.installationMissing[i.id] ?? [];
-              return (
-                <li key={i.id} className="cell-inline">
-                  <Link href={i.settingsUrl} target="_blank" rel="noreferrer" className="icon-link">
-                    <LinkExternalIcon size={14} /> {i.account}
-                  </Link>
-                  {miss.length ? (
-                    <Missing list={miss} prefix="not accepted" />
-                  ) : (
-                    <span className="fg-success small">up to date</span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </li>
-        <li>
-          <div>Then read the App again.</div>
-          <div>
-            <Button
-              size="small"
-              onClick={() => void recheck()}
-              leadingVisual={busy ? spin : SyncIcon}
-              disabled={busy || !view.key}
-            >
-              Re-check
-            </Button>
-            {!view.key && <span className="fg-muted small"> Needs the key in memory.</span>}
-          </div>
-        </li>
-      </ol>
-    </div>
+        </ol>
+      </Ui.Card.Body>
+    </Ui.Card>
   );
 }
 
@@ -336,64 +304,54 @@ function UseExisting({ onView }: { onView: (v: View) => void }) {
     }
   };
   return (
-    <form className="card-box stack" onSubmit={(e) => void submit(e)} autoComplete="off">
-      <div className="form-row">
-        <FormControl required>
-          <FormControl.Label>App id</FormControl.Label>
-          <TextInput
-            type="number"
-            min={1}
-            inputMode="numeric"
-            value={appId}
-            onChange={(e) => setAppId(e.target.value)}
-            block
-          />
-          <FormControl.Caption>On the App's settings page on GitHub, under "About".</FormControl.Caption>
-        </FormControl>
-        <FormControl>
-          <FormControl.Label>Webhook secret</FormControl.Label>
-          <TextInput
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            value={hook}
-            onChange={(e) => setHook(e.target.value)}
-            block
-          />
-          <FormControl.Caption>
-            Optional: only the member that receives the webhooks needs it.
-          </FormControl.Caption>
-        </FormControl>
-      </div>
-      <FormControl required>
-        <FormControl.Label>Private key</FormControl.Label>
-        <Textarea
-          value={key}
-          onChange={(e) => setKey(e.target.value)}
-          spellCheck={false}
-          autoComplete="off"
-          rows={4}
-          block
-          resize="vertical"
-          className="secret-area"
-          placeholder="-----BEGIN RSA PRIVATE KEY-----"
-        />
-        <FormControl.Caption>
-          The .pem file GitHub generated; a one-line value with \n works too. Octoforge checks it against
-          GitHub and keeps it in memory only, until it is delivered or expires.
-        </FormControl.Caption>
-      </FormControl>
-      <div>
-        <Button
-          type="submit"
-          variant="primary"
-          leadingVisual={busy ? spin : CheckIcon}
-          disabled={busy || !valid}
+    <Ui.Card>
+      <Ui.Form className="t-card-body t-stack" onSubmit={(e) => void submit(e)} autoComplete="off">
+        <div className="form-row">
+          <Ui.Field label="App id" hint={'On the App\'s settings page on GitHub, under "About".'}>
+            <Ui.Input
+              type="number"
+              min={1}
+              inputMode="numeric"
+              value={appId}
+              onChange={(e) => setAppId(e.target.value)}
+              required
+            />
+          </Ui.Field>
+          <Ui.Field
+            label="Webhook secret"
+            hint="Optional: only the member that receives the webhooks needs it."
+          >
+            <Ui.Input
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              value={hook}
+              onChange={(e) => setHook(e.target.value)}
+            />
+          </Ui.Field>
+        </div>
+        <Ui.Field
+          label="Private key"
+          hint="The .pem file GitHub generated; a one-line value with \n works too. Octoforge checks it against GitHub and keeps it in memory only, until it is delivered or expires."
         >
-          Check with GitHub
-        </Button>
-      </div>
-    </form>
+          <Ui.Textarea
+            value={key}
+            onChange={(e) => setKey(e.target.value)}
+            spellCheck={false}
+            autoComplete="off"
+            rows={4}
+            required
+            className="secret-area"
+            placeholder="-----BEGIN RSA PRIVATE KEY-----"
+          />
+        </Ui.Field>
+        <div>
+          <Ui.Button type="submit" variant="primary" busy={busy} disabled={!valid}>
+            {busy ? spin() : <Icon name="check-lg" />} Check with GitHub
+          </Ui.Button>
+        </div>
+      </Ui.Form>
+    </Ui.Card>
   );
 }
 
@@ -438,75 +396,71 @@ function CreateShared({ view }: { view: View }) {
   };
   const perms = Object.entries(view.union.permissions);
   return (
-    <form className="card-box stack" onSubmit={(e) => void start(e)}>
-      <p className="fg-muted small section-lead">
-        The App asks for every permission any member needs (the highest level wins) and every event.
-      </p>
-      <div className="facts">
-        <div>
-          <span className="fg-muted">Permissions</span>
-          <div className="label-row">
-            {perms.length ? perms.map(([p, l]) => <Label key={p}>{`${p}: ${l}`}</Label>) : <span>none</span>}
-          </div>
-        </div>
-        <div>
-          <span className="fg-muted">Events</span>
-          <div className="label-row">
-            {view.union.events.length ? (
-              view.union.events.map((ev) => <Label key={ev}>{ev}</Label>)
+    <Ui.Card>
+      <Ui.Form className="t-card-body t-stack" onSubmit={(e) => void start(e)}>
+        <p className="t-muted t-small">
+          The App asks for every permission any member needs (the highest level wins) and every event.
+        </p>
+        <Ui.Facts>
+          <dt>Permissions</dt>
+          <dd className="label-row">
+            {perms.length ? (
+              perms.map(([p, l]) => <Ui.Badge key={p}>{`${p}: ${l}`}</Ui.Badge>)
             ) : (
               <span>none</span>
             )}
-          </div>
-        </div>
-      </div>
-      <div className="form-row">
-        <FormControl required>
-          <FormControl.Label>App name</FormControl.Label>
-          <TextInput value={name} onChange={(e) => setName(e.target.value)} maxLength={34} block />
-          <FormControl.Caption>Unique across GitHub, at most 34 characters.</FormControl.Caption>
-        </FormControl>
-        <Owner value={org} onChange={setOrg} />
-        {hookMember && (
-          <FormControl>
-            <FormControl.Label>Webhooks go to ({hookMember})</FormControl.Label>
-            <Select
-              value={String(instanceId ?? '')}
-              onChange={(e) => setInstanceId(Number(e.target.value))}
-              disabled={!candidates.length}
-            >
-              {candidates.map((i) => (
-                <Select.Option key={i.id} value={String(i.id)}>
-                  {i.label || hostOf(i.baseUrl)}
-                </Select.Option>
-              ))}
-            </Select>
-            {hookBase && hookSource && view.union.webhook && (
-              <FormControl.Caption>
-                <span className="mono">
-                  {hookBase}
-                  {view.union.webhook.path}
-                </span>{' '}
-                ({publicUrlSourceLabel(hookSource)})
-              </FormControl.Caption>
+          </dd>
+          <dt>Events</dt>
+          <dd className="label-row">
+            {view.union.events.length ? (
+              view.union.events.map((ev) => <Ui.Badge key={ev}>{ev}</Ui.Badge>)
+            ) : (
+              <span>none</span>
             )}
-          </FormControl>
-        )}
-      </div>
-      {blocked && (
-        <Banner variant="warning" title="Not possible yet" description={blocked} layout="compact" />
-      )}
-      <div>
-        <Button
-          type="submit"
-          variant="primary"
-          leadingVisual={busy ? spin : LinkExternalIcon}
-          disabled={busy || Boolean(blocked) || !name.trim()}
-        >
-          Create on GitHub
-        </Button>
-      </div>
-    </form>
+          </dd>
+        </Ui.Facts>
+        <div className="form-row">
+          <Ui.Field label="App name" hint="Unique across GitHub, at most 34 characters.">
+            <Ui.Input value={name} onChange={(e) => setName(e.target.value)} maxLength={34} required />
+          </Ui.Field>
+          <Owner value={org} onChange={setOrg} />
+          {hookMember && (
+            <Ui.Field
+              label={`Webhooks go to (${hookMember})`}
+              hint={
+                hookBase && hookSource && view.union.webhook ? (
+                  <>
+                    <span className="t-mono">
+                      {hookBase}
+                      {view.union.webhook.path}
+                    </span>{' '}
+                    ({publicUrlSourceLabel(hookSource)})
+                  </>
+                ) : undefined
+              }
+            >
+              <Ui.Select
+                value={String(instanceId ?? '')}
+                onChange={(e) => setInstanceId(Number(e.target.value))}
+                disabled={!candidates.length}
+              >
+                {candidates.map((i) => (
+                  <option key={i.id} value={String(i.id)}>
+                    {i.label || hostOf(i.baseUrl)}
+                  </option>
+                ))}
+              </Ui.Select>
+            </Ui.Field>
+          )}
+        </div>
+        {blocked && <Notice tone="warning" title="Not possible yet" text={blocked} />}
+        <div>
+          <Ui.Button type="submit" variant="primary" busy={busy} disabled={Boolean(blocked) || !name.trim()}>
+            {busy ? spin() : <Icon name="box-arrow-up-right" />} Create on GitHub
+          </Ui.Button>
+        </div>
+      </Ui.Form>
+    </Ui.Card>
   );
 }
 
@@ -547,103 +501,104 @@ function Deliver({ view, onDelivered }: { view: View; onDelivered: () => void })
     }
   };
   return (
-    <div className="card-box stack">
-      {!view.key && (
-        <Banner
-          variant="info"
-          title="The key is not in memory"
-          description="Paste it under Use an existing App to deliver the App."
-          layout="compact"
-        />
-      )}
-      {app.installations.length > 0 && (
-        <FormControl>
-          <FormControl.Label>Installation</FormControl.Label>
-          <Select
-            value={String(installId ?? '')}
-            onChange={(e) => setInstallId(e.target.value ? Number(e.target.value) : null)}
-          >
-            <Select.Option value="">Let each member find it</Select.Option>
-            {app.installations.map((i) => (
-              <Select.Option key={i.id} value={String(i.id)}>
-                {i.account} ({i.accountType}, {i.id})
-              </Select.Option>
-            ))}
-          </Select>
-        </FormControl>
-      )}
-      <fieldset className="checks">
-        <legend className="fg-muted">Deliver to</legend>
-        {statuses.loading && !statuses.data && <Spinner size="small" />}
-        {view.members.map((m) => {
-          const rows = all.filter((s) => s.instance.member === m.name);
-          return (
-            <div key={m.name} className="deliver-member">
-              <div className="cell-inline">
-                <strong>{m.title}</strong>
-                <Missing list={m.missing} />
-              </div>
-              {rows.map((s) => {
-                const g = s.status?.github;
-                const r = results[s.instance.id];
-                const current = !s.ok
-                  ? (s.error ?? 'no answer')
-                  : g?.mode === 'app'
-                    ? `App ${String(g.app_id) === String(app.id) ? app.slug : (g.app_id ?? '?')} (${sourceLabel(g.source)})`
-                    : g?.mode
-                      ? `token (${sourceLabel(g.source)})`
-                      : 'none';
-                return (
-                  <FormControl key={s.instance.id} layout="horizontal">
-                    <Checkbox
+    <Ui.Card>
+      <Ui.Card.Body className="t-stack">
+        {!view.key && (
+          <Notice
+            tone="info"
+            title="The key is not in memory"
+            text="Paste it under Use an existing App to deliver the App."
+          />
+        )}
+        {app.installations.length > 0 && (
+          <Ui.Field label="Installation">
+            <Ui.Select
+              value={String(installId ?? '')}
+              onChange={(e) => setInstallId(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">Let each member find it</option>
+              {app.installations.map((i) => (
+                <option key={i.id} value={String(i.id)}>
+                  {i.account} ({i.accountType}, {i.id})
+                </option>
+              ))}
+            </Ui.Select>
+          </Ui.Field>
+        )}
+        <Ui.Check.Group legend="Deliver to">
+          {statuses.loading && !statuses.data && <Loading />}
+          {view.members.map((m) => {
+            const rows = all.filter((s) => s.instance.member === m.name);
+            return (
+              <div key={m.name} className="deliver-member">
+                <div className="cell-inline">
+                  <strong>{m.title}</strong>
+                  <Missing list={m.missing} />
+                </div>
+                {rows.map((s) => {
+                  const g = s.status?.github;
+                  const r = results[s.instance.id];
+                  const current = !s.ok
+                    ? (s.error ?? 'no answer')
+                    : g?.mode === 'app'
+                      ? `App ${String(g.app_id) === String(app.id) ? app.slug : (g.app_id ?? '?')} (${sourceLabel(g.source)})`
+                      : g?.mode
+                        ? `token (${sourceLabel(g.source)})`
+                        : 'none';
+                  return (
+                    <Ui.Check
+                      key={s.instance.id}
                       checked={selected.includes(s.instance.id)}
                       onChange={() => toggle(s.instance.id)}
+                      label={
+                        <>
+                          <span className="cell-inline">
+                            <StatusDot up={s.ok} label={s.ok ? 'answers' : 'no answer'} />
+                            {s.instance.label || hostOf(s.instance.baseUrl)}
+                            <span className={s.ok ? 't-muted result-note' : 'fg-danger result-note'}>
+                              {current}
+                            </span>
+                            {g?.missing && <Missing list={g.missing} prefix="reports missing" />}
+                          </span>
+                          {r && (
+                            <span className={r.ok ? 'fg-success result-note' : 'fg-danger result-note'}>
+                              <Icon name={r.ok ? 'check-lg' : 'exclamation-triangle'} /> {r.message}
+                              {r.restart ? ' (restart required)' : ''}
+                            </span>
+                          )}
+                        </>
+                      }
                     />
-                    <FormControl.Label>
-                      <span className="cell-inline">
-                        <StatusDot up={s.ok} label={s.ok ? 'answers' : 'no answer'} />
-                        {s.instance.label || hostOf(s.instance.baseUrl)}
-                        <span className={s.ok ? 'fg-muted result-note' : 'fg-danger result-note'}>
-                          {current}
-                        </span>
-                        {g?.missing && <Missing list={g.missing} prefix="reports missing" />}
-                      </span>
-                      {r && (
-                        <span className={r.ok ? 'fg-success result-note' : 'fg-danger result-note'}>
-                          {r.ok ? <CheckIcon size={14} /> : <AlertIcon size={14} />} {r.message}
-                          {r.restart ? ' (restart required)' : ''}
-                        </span>
-                      )}
-                    </FormControl.Label>
-                  </FormControl>
-                );
-              })}
-              {statuses.data && !rows.length && (
-                <span className="fg-muted small">
-                  No instance.{' '}
-                  <Link href="/settings" onClick={linkClick('/settings')}>
-                    Add one in Settings
-                  </Link>
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </fieldset>
-      <div className="button-row">
-        <Button
-          variant="primary"
-          leadingVisual={busy ? spin : PaperAirplaneIcon}
-          disabled={busy || !selected.length || !view.key}
-          onClick={() => void deliver()}
-        >
-          Deliver
-        </Button>
-        <Link href="/log" onClick={linkClick('/log')} className="small">
-          Delivery log
-        </Link>
-      </div>
-    </div>
+                  );
+                })}
+                {statuses.data && !rows.length && (
+                  <span className="t-muted t-small">
+                    No instance.{' '}
+                    <a href="/settings" onClick={linkClick('/settings')}>
+                      Add one in Settings
+                    </a>
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </Ui.Check.Group>
+        <Ui.Cluster gap="2">
+          <Ui.Button
+            type="button"
+            variant="primary"
+            busy={busy}
+            disabled={!selected.length || !view.key}
+            onClick={() => void deliver()}
+          >
+            {busy ? spin() : <Icon name="send" />} Deliver
+          </Ui.Button>
+          <a href="/log" onClick={linkClick('/log')} className="t-small">
+            Delivery log
+          </a>
+        </Ui.Cluster>
+      </Ui.Card.Body>
+    </Ui.Card>
   );
 }
 
@@ -684,20 +639,20 @@ export function GitHubAppPage() {
     >
       {state.error && <p className="fg-danger">{state.error.message}</p>}
       {capabilities && !capabilities.memberToken && (
-        <Banner
-          variant="warning"
+        <Notice
+          tone="warning"
           title="OCTOFORGE_TOKEN is not set"
-          description="Octoforge cannot talk to the member API, so it cannot deliver the App."
+          text="Octoforge cannot talk to the member API, so it cannot deliver the App."
         />
       )}
-      {!view && state.loading && <Spinner size="small" />}
+      {!view && state.loading && <Loading />}
       {view && (
         <>
           <Section title="The App">
             {app ? (
               <AppFactsBox app={app} view={view} onView={setView} />
             ) : (
-              <p className="fg-muted">No shared App yet: use an existing one or create it below.</p>
+              <p className="t-muted">No shared App yet: use an existing one or create it below.</p>
             )}
           </Section>
           {!app && forms}
@@ -713,16 +668,16 @@ export function GitHubAppPage() {
           {app && forms}
           {view.others.length > 0 && (
             <Section title="Members without an App">
-              <ul className="result-list">
+              <ul className="result-list t-plain-list">
                 {view.others.map((o) => (
                   <li key={o.name}>
-                    <Link
+                    <a
                       href={`/members/${o.name}/credentials`}
                       onClick={linkClick(`/members/${o.name}/credentials`)}
                     >
                       {o.title}
-                    </Link>{' '}
-                    <span className="fg-muted">{o.reason}</span>
+                    </a>{' '}
+                    <span className="t-muted">{o.reason}</span>
                   </li>
                 ))}
               </ul>

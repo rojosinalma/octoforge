@@ -9,6 +9,8 @@ export interface AppState {
   settingsLoaded: boolean;
   /** Optimistic patch; reverts and toasts on failure. Resolves true on success. */
   updateSettings: (patch: SettingsPatch, opts?: { silent?: boolean }) => Promise<boolean>;
+  /** Optimistic patch without toasts (settings rows show their own); reverts on failure. */
+  saveSettings: (patch: SettingsPatch) => Promise<{ ok: boolean; message: string }>;
   capabilities: Capabilities | null;
   authRequired: boolean;
   logout: () => Promise<void>;
@@ -51,25 +53,30 @@ export function AppProvider({
     };
   }, [toast]);
 
+  const saveSettings = useCallback<AppState['saveSettings']>(async (patch) => {
+    let previous: Settings = DEFAULT_SETTINGS;
+    setSettings((s) => {
+      previous = s;
+      return { ...s, ...patch };
+    });
+    try {
+      const r = await api.patchSettings(patch);
+      setSettings(r.settings);
+      return { ok: true, message: 'Saved' };
+    } catch (e) {
+      setSettings(previous);
+      return { ok: false, message: (e as Error).message || 'Save failed' };
+    }
+  }, []);
+
   const updateSettings = useCallback<AppState['updateSettings']>(
     async (patch, opts = {}) => {
-      let previous: Settings = DEFAULT_SETTINGS;
-      setSettings((s) => {
-        previous = s;
-        return { ...s, ...patch };
-      });
-      try {
-        const r = await api.patchSettings(patch);
-        setSettings(r.settings);
-        if (!opts.silent) toast('Settings saved');
-        return true;
-      } catch (e) {
-        setSettings(previous);
-        toast('Settings not saved', { description: (e as Error).message, variant: 'critical' });
-        return false;
-      }
+      const r = await saveSettings(patch);
+      if (r.ok && !opts.silent) toast('Settings saved');
+      if (!r.ok) toast('Settings not saved', { description: r.message, variant: 'critical' });
+      return r.ok;
     },
-    [toast],
+    [saveSettings, toast],
   );
 
   const logout = useCallback(async () => {
@@ -81,8 +88,8 @@ export function AppProvider({
   }, [onLoggedOut]);
 
   const value = useMemo<AppState>(
-    () => ({ settings, settingsLoaded, updateSettings, capabilities, authRequired, logout }),
-    [settings, settingsLoaded, updateSettings, capabilities, authRequired, logout],
+    () => ({ settings, settingsLoaded, updateSettings, saveSettings, capabilities, authRequired, logout }),
+    [settings, settingsLoaded, updateSettings, saveSettings, capabilities, authRequired, logout],
   );
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

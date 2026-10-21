@@ -2,6 +2,25 @@ import { Settings, SettingsPatch } from '@octoforge/shared';
 import { sql } from 'drizzle-orm';
 import type { Db } from '../db';
 
+/**
+ * Settings written before 0.2 kept one `theme` row (a Primer theme such as `dark_dimmed`). It maps onto the
+ * mode (dark* = dark, light* = light, auto = auto); skin and palette keep their defaults. The old row stays
+ * in place and an explicitly stored `mode` wins.
+ */
+export function migrateLegacyTheme(raw: Record<string, unknown>): Record<string, unknown> {
+  const { theme, ...rest } = raw;
+  if (typeof theme !== 'string' || 'mode' in rest) return rest;
+  const mode =
+    theme === 'auto'
+      ? 'auto'
+      : theme.startsWith('dark')
+        ? 'dark'
+        : theme.startsWith('light')
+          ? 'light'
+          : null;
+  return mode ? { ...rest, mode } : rest;
+}
+
 /** Stored rows merged over the schema defaults. Read at use time, never cached. */
 export async function getSettings(db: Db): Promise<Settings> {
   const rows = await db.all<{ key: string; value: string }>(sql`select key, value from settings`);
@@ -13,14 +32,15 @@ export async function getSettings(db: Db): Promise<Settings> {
       // Unparseable value: that key falls back to its default.
     }
   }
-  const parsed = Settings.safeParse(raw);
+  const input = migrateLegacyTheme(raw);
+  const parsed = Settings.safeParse(input);
   if (parsed.success) return parsed.data;
   // One bad value must not take every setting down: drop the offending keys and parse again.
   for (const issue of parsed.error.issues) {
     const key = issue.path[0];
-    if (typeof key === 'string') delete raw[key];
+    if (typeof key === 'string') delete input[key];
   }
-  return Settings.parse(raw);
+  return Settings.parse(input);
 }
 
 /** Setting.fetch-style read of one key. */
