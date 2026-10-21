@@ -25,7 +25,10 @@ Every member ships `octoforge.json` at its repository root and serves the same d
   "github": {
     "auth": ["app", "pat"],
     "app": {
-      "permissions": { "actions": "write", "administration": "write", "metadata": "read" },
+      "permissions": {
+        "actions": "write", "administration": "write", "contents": "write",
+        "workflows": "write", "pull_requests": "write", "metadata": "read"
+      },
       "events": ["workflow_job"],
       "webhook_path": "/webhooks/github",
       "setup_path": "/"
@@ -75,7 +78,7 @@ The same token value is set in Octoforge's `.env` and in each member's `.env`.
 |---|---|
 | `GET /manifest` | The `octoforge.json` document itself, not wrapped in `{ok, message}`. No bearer needed. |
 | `GET /status` | `{contract, version, github: {mode, source, app_id?, login?}, database: {engine, schema?, source}}`. `source` is `env`, `octoforge` or `none`. Never returns a secret. |
-| `PUT /github` | Body `{mode: "pat", token}` or `{mode: "app", app_id, private_key, webhook_secret, installation_id?}`. The member checks the credential against GitHub (`GET /user` for a token, `GET /app` with a JWT for an App), stores it in its own settings and uses it from then on. A delivered value wins over the env value. Answer: `{ok, message, login? / app_slug?, restart_required}`. |
+| `PUT /github` | Body `{mode: "pat", token}` or `{mode: "app", app_id, private_key, webhook_secret, installation_id?}`. The member checks the credential against GitHub (`GET /user` for a token, `GET /app` with a JWT for an App), stores it in its own settings and uses it from then on. A delivered value wins over the env value. Answer: `{ok, message, login? / app_slug?, restart_required}`; 400 when GitHub refuses the credential, 502 when GitHub cannot be reached. |
 | `DELETE /github` | Drops the delivered credential; the member goes back to its env value. |
 | `POST /database/adopt` | Body `{url, schema, copy}`. Moves the member to the database at `url` (section 3). |
 | `DELETE /database` | Drops the adopted database setting; the member goes back to its `DATABASE_URL` on the next start. |
