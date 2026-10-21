@@ -52,3 +52,18 @@ export const adoptions = sqliteTable(
   },
   (t) => [index('adoptions_at').on(t.at)],
 );
+
+/** Postgres roles Octoforge created itself: only these may get a new password on a later adoption. */
+export const createdRoles = sqliteTable(
+  'created_roles',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    /** host:port of FORGE_PG_ADMIN_URL; role names are cluster-wide. */
+    cluster: text('cluster').notNull(),
+    role: text('role').notNull(),
+    /** pg_roles.oid at creation: a role dropped and created again by someone else does not match. */
+    oid: integer('oid').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [uniqueIndex('created_roles_cluster_role').on(t.cluster, t.role)],
+);

@@ -1,6 +1,6 @@
 import type { AdoptResult, Engine, InstanceStatus, MemberCard } from '@octoforge/shared';
 import { AlertIcon, CheckIcon, DatabaseIcon, UndoIcon } from '@primer/octicons-react';
-import { Banner, Button, Label, Spinner, useConfirm } from '@primer/react';
+import { Banner, Button, Dialog, FormControl, Label, Spinner, TextInput, useConfirm } from '@primer/react';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Page, Section, StatusDot } from '../components/Page';
@@ -43,6 +43,60 @@ function Results({ results }: { results: AdoptResult[] }) {
   );
 }
 
+/** Confirms a Postgres adoption; the current password is for a member role that already exists. */
+function PostgresAdoptDialog({
+  card,
+  onAdopt,
+  onClose,
+}: {
+  card: MemberCard;
+  onAdopt: (existingPassword: string) => void;
+  onClose: () => void;
+}) {
+  const [password, setPassword] = useState('');
+  const submit = () => onAdopt(password);
+  return (
+    <Dialog
+      title={`Move ${card.title} to Postgres?`}
+      onClose={onClose}
+      footerButtons={[
+        { content: 'Cancel', onClick: onClose },
+        { content: 'Adopt', buttonType: 'primary', onClick: submit },
+      ]}
+    >
+      <div className="stack">
+        <p>
+          The first instance copies every row to schema "{card.name}" in the shared Postgres database and
+          compares the counts; the others switch without a copy. The old database stays untouched for a
+          rollback.
+        </p>
+        <FormControl>
+          <FormControl.Label>Current password (only when the member's role already exists)</FormControl.Label>
+          <TextInput
+            type="password"
+            autoComplete="off"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            block
+          />
+          <FormControl.Caption>
+            Leave empty when Octoforge creates the role "{card.name}" or created it before. If the role
+            already exists for the member's own database, enter its current password: it stays unchanged, so
+            the member's own DATABASE_URL keeps working. Octoforge passes it to the member once and does not
+            store it.
+          </FormControl.Caption>
+        </FormControl>
+      </div>
+    </Dialog>
+  );
+}
+
 function MemberDatabase({ card }: { card: MemberCard }) {
   const { capabilities } = useApp();
   const { toast } = useToast();
@@ -59,20 +113,12 @@ function MemberDatabase({ card }: { card: MemberCard }) {
   if (capabilities?.postgres && db?.engines.includes('postgres') && db.schema) available.push('postgres');
   if (capabilities?.sharedData && db?.engines.includes('sqlite')) available.push('sqlite');
 
-  const adopt = async (engine: Engine) => {
-    const target =
-      engine === 'postgres'
-        ? `schema "${card.name}" in the shared Postgres database`
-        : `${capabilities?.sharedData}/${card.name}.db`;
-    const ok = await confirm({
-      title: `Move ${card.title} to ${ENGINE_LABEL[engine]}?`,
-      content: `The first instance copies every row to ${target} and compares the counts; the others switch without a copy. The old database stays untouched for a rollback.`,
-      confirmButtonContent: 'Adopt',
-    });
-    if (!ok) return;
+  const [asking, setAsking] = useState(false);
+
+  const run = async (engine: Engine, existingPassword?: string) => {
     setBusy(engine);
     try {
-      const r = await api.adopt(card.name, engine);
+      const r = await api.adopt(card.name, engine, existingPassword);
       setResults(r.results);
       toast(r.message, { variant: r.results.every((x) => x.ok) ? 'success' : 'warning' });
       void status.reload();
@@ -81,6 +127,19 @@ function MemberDatabase({ card }: { card: MemberCard }) {
     } finally {
       setBusy(null);
     }
+  };
+
+  const adopt = async (engine: Engine) => {
+    if (engine === 'postgres') {
+      setAsking(true);
+      return;
+    }
+    const ok = await confirm({
+      title: `Move ${card.title} to ${ENGINE_LABEL[engine]}?`,
+      content: `The first instance copies every row to ${capabilities?.sharedData}/${card.name}.db and compares the counts; the others switch without a copy. The old database stays untouched for a rollback.`,
+      confirmButtonContent: 'Adopt',
+    });
+    if (ok) await run(engine);
   };
 
   const release = async (s: InstanceStatus) => {
@@ -192,6 +251,16 @@ function MemberDatabase({ card }: { card: MemberCard }) {
         )}
         {results && <Results results={results} />}
       </div>
+      {asking && (
+        <PostgresAdoptDialog
+          card={card}
+          onClose={() => setAsking(false)}
+          onAdopt={(pw) => {
+            setAsking(false);
+            void run('postgres', pw || undefined);
+          }}
+        />
+      )}
     </Section>
   );
 }

@@ -114,8 +114,11 @@ export const api = {
     send<{ env: string } & Message>('POST', API.envBlock(id), { installationId }),
   revoke: (m: string, id: number) =>
     send<Message & { restartRequired: boolean | null }>('DELETE', API.revoke(m, id)),
-  adopt: (m: string, engine: Engine) =>
-    send<{ results: AdoptResult[]; schema: string; url: string } & Message>('POST', API.adopt(m), { engine }),
+  adopt: (m: string, engine: Engine, existingPassword?: string) =>
+    send<{ results: AdoptResult[]; schema: string; url: string } & Message>('POST', API.adopt(m), {
+      engine,
+      ...(existingPassword ? { existingPassword } : {}),
+    }),
   release: (m: string, id: number) => send<{ result: AdoptResult } & Message>('DELETE', API.release(m, id)),
   log: (q: { kind?: LogKind; member?: string; before?: string }) => {
     const p = new URLSearchParams();

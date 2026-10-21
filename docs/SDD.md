@@ -38,12 +38,13 @@ files, additive only, applied at start-up.
 | `instances` | member, base URL, optional public URL, label: where each member runs and where GitHub reaches it |
 | `deliveries` | time, member, target (instance URL or `env block`), kind (`app`, `pat`), ok, message, detail |
 | `adoptions` | time, member, target, engine (`postgres`, `sqlite`, `release`), ok, message, detail |
+| `created_roles` | cluster (host:port of the admin URL), role, `pg_roles.oid`, time: the Postgres roles Octoforge created, the only ones it may give a new password |
 
 No table holds a credential, a private key, a token or a database password. Details carry only
 non-secret facts (App slug and id, token login, redacted URLs, table row counts).
 
 **Memory only**: the secret store holds an App's private key and webhook secret, a pasted token, a
-generated role password and the `state` of a manifest flow. Entries expire after `secretTtlMin`
+generated or existing role password and the `state` of a manifest flow. Entries expire after `secretTtlMin`
 (default 15 min), the store holds at most `secretStoreMax` entries, delivery removes them, and the
 API never returns them except in the one-time `.env` block.
 
@@ -70,11 +71,14 @@ API never returns them except in the one-time `.env` block.
   (implied scopes expanded) and missing ones are shown before delivery.
 - **Fallback**: instead of delivering, the credential can be shown once as an `.env` block with the
   variable names from the manifest's `env`; Octoforge forgets it at the same moment.
-- **Database adoption (Postgres)**: with `FORGE_PG_ADMIN_URL`, Octoforge creates or rotates the
-  login role `<member>`, creates schema `<member>` owned by it, creates `octoforge_reader` and grants
-  it `USAGE` + `SELECT` (also on future tables), all in one transaction. It then calls
+- **Database adoption (Postgres)**: with `FORGE_PG_ADMIN_URL`, Octoforge creates the login role
+  `<member>` (and records its oid in `created_roles`), rotates its password when the recorded oid
+  matches, or, for a role it did not create, keeps the password the operator entered after logging
+  in with it once; without one it refuses. It then creates schema `<member>` owned by the role, sets
+  its `search_path` in the shared database only, creates `octoforge_reader` and grants it `USAGE` +
+  `SELECT` (also on future tables), all in one transaction. It then calls
   `POST /api/octoforge/database/adopt` on the first instance with `copy: true` and, when that
-  worked, on the others with `copy: false`. The generated password lives only for that call.
+  worked, on the others with `copy: false`. The password lives only for that call.
 - **Database adoption (SQLite)**: with `OCTOFORGE_SHARED_DATA`, the URL is `sqlite:<dir>/<member>.db`.
 - **Release**: `DELETE /api/octoforge/database` (or `/github`) on one instance; logged.
 
@@ -98,7 +102,9 @@ with `OCTOFORGE_LEAK_PATTERNS`).
   (the callback query holds the one-time code). Every outgoing call is logged as method, target and
   outcome.
 - Postgres DDL cannot take parameters: member names are validated against the member-name pattern
-  and a reserved list, identifiers and literals are quoted, and the generated password is hex.
+  and a reserved list, identifiers and literals are quoted, and the generated password is hex. An
+  existing role's password never goes into SQL text: it is only used to log in once and placed in
+  the member URL.
 
 ## Design decisions
 
@@ -117,6 +123,7 @@ with `OCTOFORGE_LEAK_PATTERNS`).
 | Credential delivery | Through each member's API (`PUT /api/octoforge/github`, bearer `OCTOFORGE_TOKEN`); a one-time `.env` block as fallback | No credential ever lands on disk in Octoforge; members without the API still get a copyable result | 2026-10-21 |
 | Secrets | Memory only, with a TTL and a size cap from settings, dropped on delivery | A credential exists in Octoforge only for the minutes between creation and hand-over | 2026-10-21 |
 | Public address of an instance | Optional `public_url` per instance, else the member's reported `public_url` in `/status` (optional field, contract stays 1), else the base URL | The base URL is where Octoforge calls the member, often a private name; GitHub needs an address it can reach for webhooks and the setup page | 2026-10-21 |
+| Existing member roles | Keep the password of a role Octoforge did not create (operator enters it, checked by a login first); rotate only roles recorded in `created_roles` by oid; `search_path` set `IN DATABASE` | A member may already use its role for its own database: a new password would break its `DATABASE_URL` and the rollback; a cluster-wide `search_path` would change it there too | 2026-10-21 |
 | Auth | Fail-closed password login (`AUTH_PASSWORD`), `AUTH=none` only on purpose | The app creates credentials; it must never start open by accident | 2026-10-21 |
 
 ## Current scope

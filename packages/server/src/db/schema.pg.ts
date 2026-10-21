@@ -1,4 +1,4 @@
-import { boolean, index, pgTable, serial, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { bigint, boolean, index, pgTable, serial, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
 // Postgres twin of schema.ts. Tables live in the `forge` schema: the connection sets
 // search_path=forge and the migrations run there, so the table definitions stay unqualified.
@@ -51,4 +51,19 @@ export const adoptions = pgTable(
     detail: text('detail').notNull().default('{}'),
   },
   (t) => [index('adoptions_at').on(t.at)],
+);
+
+/** Postgres roles Octoforge created itself: only these may get a new password on a later adoption. */
+export const createdRoles = pgTable(
+  'created_roles',
+  {
+    id: serial('id').primaryKey(),
+    /** host:port of FORGE_PG_ADMIN_URL; role names are cluster-wide. */
+    cluster: text('cluster').notNull(),
+    role: text('role').notNull(),
+    /** pg_roles.oid at creation: a role dropped and created again by someone else does not match. */
+    oid: bigint('oid', { mode: 'number' }).notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [uniqueIndex('created_roles_cluster_role').on(t.cluster, t.role)],
 );

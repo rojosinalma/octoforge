@@ -125,12 +125,21 @@ migration journal inside its own schema, and starts with a role that owns only t
 
 ### Engines
 
-- **Postgres**: Octoforge creates a login role named after the member, owning schema `<name>`, with
-  its `search_path` set to that schema, and passes its URL in `url`. Every adoption sets a new random
-  password for the role, so an adoption always goes to every instance of the member, and each one
-  must restart to use the new URL. A read-only role (`octoforge_reader`) gets `USAGE` and `SELECT` on every
+- **Postgres**: Octoforge uses a login role named after the member, owning schema `<name>`, with
+  its `search_path` set to that schema in the shared database only (`ALTER ROLE … IN DATABASE`), and
+  passes its URL in `url`. A read-only role (`octoforge_reader`) gets `USAGE` and `SELECT` on every
   member schema for views that span members. Writes from Octoforge always go through the member's
-  API, never through the database.
+  API, never through the database. The role is handled in one of three ways:
+  1. **No role yet**: Octoforge creates it with a random password and records that it did.
+  2. **A role Octoforge created**: every adoption sets a new random password, so an adoption always
+     goes to every instance of the member, and each one must restart to use the new URL.
+  3. **A role that exists already**, for example because the member uses it for its own database:
+     Octoforge never changes its password, so the member's own `DATABASE_URL` keeps working and a
+     rollback stays possible. The operator enters the role's current password with the adoption.
+     Octoforge first logs in with it (a wrong password stops the adoption before any change), then
+     puts it in `url`. The password lives in memory for that one request and is never stored,
+     logged or shown. Without it, the adoption is refused. The admin role needs `ADMIN OPTION` on
+     such a role (`GRANT <name> TO <admin> WITH ADMIN OPTION`, as a superuser).
 - **SQLite**: Octoforge and the member mount the same host directory. `url` is
   `sqlite:<path to <name>.db in that directory>`; `schema` is ignored. Octoforge attaches the files
   read-only.
@@ -138,6 +147,7 @@ migration journal inside its own schema, and starts with a role that owns only t
 ## 4. What Octoforge stores
 
 Its own database holds the member instances (base URLs), the delivery log and the adoption log:
-what went where, when, and whether it worked. It never stores a credential or a database password.
-A GitHub App key, a token or a generated role password lives in Octoforge's memory only for the
-few minutes between creation and delivery.
+what went where, when, and whether it worked, plus the names of the Postgres roles it created. It
+never stores a credential or a database password. A GitHub App key, a token, a generated role
+password or an existing role's password lives in Octoforge's memory only for the few minutes between
+creation and delivery.

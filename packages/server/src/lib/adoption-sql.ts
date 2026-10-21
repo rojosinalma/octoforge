@@ -28,11 +28,30 @@ export function generatePassword(): string {
   return randomBytes(32).toString('hex');
 }
 
+/**
+ * What adoption does with the member's login role:
+ * - `create`: the role is missing; Octoforge creates it with a generated password.
+ * - `rotate`: the role exists and Octoforge created it; a new generated password replaces the old one.
+ * - `keep`: the role exists and its current password was given; the password stays as it is.
+ * - `refuse`: the role exists, Octoforge did not create it and no password was given.
+ */
+export type RoleAction = 'create' | 'rotate' | 'keep' | 'refuse';
+
+export function roleAction(input: {
+  roleExists: boolean;
+  createdByOctoforge: boolean;
+  existingPassword: boolean;
+}): RoleAction {
+  if (!input.roleExists) return 'create';
+  if (input.existingPassword) return 'keep';
+  return input.createdByOctoforge ? 'rotate' : 'refuse';
+}
+
 export interface AdoptionSqlInput {
   member: string;
-  password: string;
-  /** The member's role already exists: a second adoption rotates its password. */
-  roleExists: boolean;
+  role: Exclude<RoleAction, 'refuse'>;
+  /** The generated password for `create` and `rotate`; unused (and not needed) for `keep`. */
+  password?: string;
   readerExists: boolean;
   /** The shared database: members and the reader need CONNECT when PUBLIC has none. */
   database: string;
@@ -41,31 +60,44 @@ export interface AdoptionSqlInput {
 /** Statements run in one transaction by the admin role (CREATEROLE and CREATE on the database). */
 export function buildAdoptionSql(input: AdoptionSqlInput): string[] {
   assertAdoptableName(input.member);
-  if (!/^[A-Za-z0-9]{16,128}$/.test(input.password))
-    throw new Error('generated password has an unexpected form');
   const role = quoteIdent(input.member);
   const schema = quoteIdent(input.member);
   const reader = quoteIdent(READER_ROLE);
-  const pw = quoteLiteral(input.password);
   if (!input.database) throw new Error('the admin URL names no database');
   const database = quoteIdent(input.database);
-  return [
+  const login: string[] = [];
+  if (input.role !== 'keep') {
+    if (!input.password || !/^[A-Za-z0-9]{16,128}$/.test(input.password))
+      throw new Error('generated password has an unexpected form');
+    const pw = quoteLiteral(input.password);
     // A CREATEROLE admin may only touch LOGIN and PASSWORD of an existing role (Postgres 16+ rules).
-    input.roleExists
-      ? `ALTER ROLE ${role} WITH LOGIN PASSWORD ${pw}`
-      : `CREATE ROLE ${role} WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD ${pw}`,
+    login.push(
+      input.role === 'rotate'
+        ? `ALTER ROLE ${role} WITH LOGIN PASSWORD ${pw}`
+        : `CREATE ROLE ${role} WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD ${pw}`,
+    );
+  }
+  return [
+    ...login,
     // The admin needs membership to hand the schema to the role and to set its default privileges.
     `GRANT ${role} TO CURRENT_USER`,
     `CREATE SCHEMA IF NOT EXISTS ${schema} AUTHORIZATION ${role}`,
     `ALTER SCHEMA ${schema} OWNER TO ${role}`,
     `REVOKE ALL ON SCHEMA ${schema} FROM PUBLIC`,
-    `ALTER ROLE ${role} SET search_path = ${schema}`,
+    // Per database: a role that also works in its own database keeps its search_path there.
+    `ALTER ROLE ${role} IN DATABASE ${database} SET search_path = ${schema}`,
     ...(input.readerExists ? [] : [`CREATE ROLE ${reader} WITH NOLOGIN`]),
     `GRANT CONNECT ON DATABASE ${database} TO ${role}, ${reader}`,
     `GRANT USAGE ON SCHEMA ${schema} TO ${reader}`,
     `GRANT SELECT ON ALL TABLES IN SCHEMA ${schema} TO ${reader}`,
     `ALTER DEFAULT PRIVILEGES FOR ROLE ${role} IN SCHEMA ${schema} GRANT SELECT ON TABLES TO ${reader}`,
   ];
+}
+
+/** Role names are cluster-wide: the cluster is the admin URL's host and port. */
+export function clusterOf(adminUrl: string): string {
+  const u = new URL(adminUrl);
+  return `${u.hostname}:${u.port || '5432'}`;
 }
 
 /**

@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import {
   buildAdoptionSql,
+  clusterOf,
   generatePassword,
   memberDatabaseUrl,
   quoteIdent,
   quoteLiteral,
+  roleAction,
   sqliteMemberUrl,
 } from '../src/lib/adoption-sql';
 
@@ -15,8 +17,8 @@ describe('buildAdoptionSql', () => {
     expect(
       buildAdoptionSql({
         member: 'alice-tool',
+        role: 'create',
         password: PW,
-        roleExists: false,
         readerExists: false,
         database: 'shared',
       }),
@@ -26,7 +28,7 @@ describe('buildAdoptionSql', () => {
       'CREATE SCHEMA IF NOT EXISTS "alice-tool" AUTHORIZATION "alice-tool"',
       'ALTER SCHEMA "alice-tool" OWNER TO "alice-tool"',
       'REVOKE ALL ON SCHEMA "alice-tool" FROM PUBLIC',
-      'ALTER ROLE "alice-tool" SET search_path = "alice-tool"',
+      'ALTER ROLE "alice-tool" IN DATABASE "shared" SET search_path = "alice-tool"',
       'CREATE ROLE "octoforge_reader" WITH NOLOGIN',
       'GRANT CONNECT ON DATABASE "shared" TO "alice-tool", "octoforge_reader"',
       'GRANT USAGE ON SCHEMA "alice-tool" TO "octoforge_reader"',
@@ -35,11 +37,11 @@ describe('buildAdoptionSql', () => {
     ]);
   });
 
-  test('existing roles: the password is rotated, the reader is not created again', () => {
+  test('a role Octoforge created: the password is rotated, the reader is not created again', () => {
     const stmts = buildAdoptionSql({
       member: 'alice-tool',
+      role: 'rotate',
       password: PW,
-      roleExists: true,
       readerExists: true,
       database: 'shared',
     });
@@ -47,8 +49,39 @@ describe('buildAdoptionSql', () => {
     expect(stmts.some((s) => s.startsWith('CREATE ROLE'))).toBe(false);
   });
 
+  test('an existing role with its password given: no password change, search_path per database', () => {
+    const stmts = buildAdoptionSql({
+      member: 'alice-tool',
+      role: 'keep',
+      readerExists: true,
+      database: 'shared',
+    });
+    expect(stmts.some((s) => /PASSWORD|CREATE ROLE|ALTER ROLE "alice-tool" WITH/.test(s))).toBe(false);
+    expect(stmts[0]).toBe('GRANT "alice-tool" TO CURRENT_USER');
+    expect(stmts.filter((s) => s.includes('search_path'))).toEqual([
+      'ALTER ROLE "alice-tool" IN DATABASE "shared" SET search_path = "alice-tool"',
+    ]);
+    expect(stmts).toContain('GRANT CONNECT ON DATABASE "shared" TO "alice-tool", "octoforge_reader"');
+  });
+
+  test('role action: create, keep with a password, rotate only what Octoforge created, else refuse', () => {
+    const at = (roleExists: boolean, createdByOctoforge: boolean, existingPassword: boolean) =>
+      roleAction({ roleExists, createdByOctoforge, existingPassword });
+    expect(at(false, false, false)).toBe('create');
+    expect(at(false, false, true)).toBe('create');
+    expect(at(true, false, true)).toBe('keep');
+    expect(at(true, true, true)).toBe('keep');
+    expect(at(true, true, false)).toBe('rotate');
+    expect(at(true, false, false)).toBe('refuse');
+  });
+
+  test('cluster key: host and port of the admin URL', () => {
+    expect(clusterOf('postgres://a:b@db.example.com/x')).toBe('db.example.com:5432');
+    expect(clusterOf('postgres://a:b@db.example.com:6432/x')).toBe('db.example.com:6432');
+  });
+
   test('refuses names that are not members or are reserved, and odd passwords', () => {
-    const base = { password: PW, roleExists: false, readerExists: false, database: 'shared' };
+    const base = { role: 'create' as const, password: PW, readerExists: false, database: 'shared' };
     for (const member of [
       'Alice',
       'a"; DROP ROLE x; --',

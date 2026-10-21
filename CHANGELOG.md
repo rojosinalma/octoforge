@@ -6,6 +6,16 @@ All notable changes to Octoforge are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Postgres adoption no longer changes the password of a member role that already exists and that
+  Octoforge did not create. The Database page asks for the role's current password; Octoforge logs
+  in with it first and hands it to the member once, without storing it. Without it the adoption is
+  refused. Roles Octoforge created itself (recorded in the new `created_roles` table) still get a
+  new password on every adoption.
+- The member role's `search_path` is set for the shared database only (`ALTER ROLE … IN DATABASE`),
+  so a role that also works in its own database keeps its settings there.
+
 ## [0.1.1] - 2026-10-21
 
 ### Fixed

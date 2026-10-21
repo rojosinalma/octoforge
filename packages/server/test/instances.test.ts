@@ -138,12 +138,33 @@ describe('migration 0001_public_url', () => {
       const sqlText = fs.readFileSync(path.join(dirOf, '0001_public_url.sql'), 'utf8').trim();
       expect(sqlText).toMatch(/^ALTER TABLE [`"]instances[`"] ADD (COLUMN )?[`"]public_url[`"] text;$/);
       const journal = JSON.parse(fs.readFileSync(path.join(dirOf, 'meta', '_journal.json'), 'utf8'));
-      expect(journal.entries.map((e: { tag: string }) => e.tag)).toEqual(['0000_init', '0001_public_url']);
+      expect(journal.entries.slice(0, 2).map((e: { tag: string }) => e.tag)).toEqual([
+        '0000_init',
+        '0001_public_url',
+      ]);
       const snap = JSON.parse(fs.readFileSync(path.join(dirOf, 'meta', '0001_snapshot.json'), 'utf8'));
       const prev = JSON.parse(fs.readFileSync(path.join(dirOf, 'meta', '0000_snapshot.json'), 'utf8'));
       expect(snap.prevId).toBe(prev.id);
       const table = snap.tables.instances ?? snap.tables['public.instances'];
       expect(table.columns.public_url).toMatchObject({ type: 'text', notNull: false });
+    }
+  });
+
+  test('0002_created_roles: one new table in both dialects, in step with the journal', () => {
+    for (const dialect of ['sqlite', 'postgres']) {
+      const dirOf = path.join(MIGRATIONS, dialect);
+      const sqlText = fs.readFileSync(path.join(dirOf, '0002_created_roles.sql'), 'utf8');
+      expect(sqlText).toMatch(/^CREATE TABLE [`"]created_roles[`"]/);
+      expect(sqlText).not.toMatch(/ALTER TABLE|DROP/);
+      const journal = JSON.parse(fs.readFileSync(path.join(dirOf, 'meta', '_journal.json'), 'utf8'));
+      expect(journal.entries.map((e: { tag: string }) => e.tag)).toEqual([
+        '0000_init',
+        '0001_public_url',
+        '0002_created_roles',
+      ]);
+      const snap = JSON.parse(fs.readFileSync(path.join(dirOf, 'meta', '0002_snapshot.json'), 'utf8'));
+      const prev = JSON.parse(fs.readFileSync(path.join(dirOf, 'meta', '0001_snapshot.json'), 'utf8'));
+      expect(snap.prevId).toBe(prev.id);
     }
   });
 });

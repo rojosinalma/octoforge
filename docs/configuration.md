@@ -17,7 +17,7 @@ Octoforge reads two kinds of configuration:
 | `PUBLIC_URL` | for GitHub Apps | none | Base URL of Octoforge as your browser reaches it. GitHub sends you back to `<PUBLIC_URL>/github/callback`. |
 | `SESSION_SECRET` | no | generated | Signs the session cookie (at least 32 characters). When empty, one is generated and kept in `DATA_DIR/session.secret`. |
 | `DATABASE_URL` | no | `sqlite:<DATA_DIR>/octoforge.db` | Octoforge's own database. A `postgres://` URL puts its tables in schema `forge`. |
-| `FORGE_PG_ADMIN_URL` | for Postgres adoption | none | A role with `CREATEROLE` and `CREATE` on the shared database. Used only to create one role and one schema per member. |
+| `FORGE_PG_ADMIN_URL` | for Postgres adoption | none | A role with `CREATEROLE` and `CREATE` on the shared database. Used only to create one role and one schema per member. For a member role that exists already, this role needs `ADMIN OPTION` on it, and you enter the role's current password on the Database page ([members](members.md#engines)). |
 | `OCTOFORGE_SHARED_DATA` | for SQLite adoption | none | Absolute path of the directory with one SQLite file per member, **as the members see it**. |
 | `LOG_LEVEL` | no | `info` | `debug`, `info`, `warn`, `error` or `silent`. |
 | `PORT` | no | `3000` | Listen port. The image sets it. |

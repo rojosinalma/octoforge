@@ -33,6 +33,15 @@ is never committed.
 Single steps: `bun run typecheck`, `bun run lint` (Biome; `bun run lint:fix` formats), `bun test`,
 `bun run build`. Typecheck, lint and tests cover `packages/` only; the tool folders check themselves.
 
+The Postgres adoption tests against a real server run only when `OCTOFORGE_TEST_PG_URL` names a
+superuser on a throwaway server; they create and drop roles and databases:
+
+```
+docker run --rm -d --name pg-test -e POSTGRES_PASSWORD=su -p 127.0.0.1:55432:5432 postgres:17-alpine
+OCTOFORGE_TEST_PG_URL=postgres://postgres:su@127.0.0.1:55432/postgres bun test packages/server/test/postgres.test.ts
+docker rm -f pg-test
+```
+
 ## Style and layout
 
 - TypeScript, strict. Biome formats: 2 spaces, single quotes, 110 columns.

@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { generateKeyPairSync } from 'node:crypto';
+import { roleAction } from '../src/lib/adoption-sql';
+import { ActionError } from '../src/lib/credentials';
+import type { Provisioned, ProvisionInput } from '../src/lib/database';
 import { listLog } from '../src/lib/journal';
 import { type Call, json, MANIFEST, testApp } from './helpers';
 
@@ -215,9 +218,11 @@ describe('database adoption', () => {
       member(),
       { FORGE_PG_ADMIN_URL: 'postgres://admin:adminpw@db.example.com:5432/octoforge' },
       {
-        provision: async (_admin, m, password) => {
-          expect(m).toBe('alice-tool');
-          seen = password;
+        provision: async (_admin, input) => {
+          expect(input.member).toBe('alice-tool');
+          expect(input.createdOid).toBeNull();
+          seen = input.generated;
+          return { action: 'create', password: input.generated, oid: 16400 };
         },
       },
     );
@@ -237,6 +242,104 @@ describe('database adoption', () => {
     const log = await listLog(t.db, { kind: 'adoption', limit: 10 });
     expect(JSON.stringify(log)).not.toContain(seen);
     expect(JSON.stringify(log)).not.toContain('adminpw');
+    expect(log[0]?.detail.role).toBe('created');
+  });
+
+  describe('Postgres: existing roles', () => {
+    // A fake cluster that applies the real role decision: what exists, with which oid and password.
+    function cluster(roles: Record<string, { oid: number; password: string }>) {
+      const inputs: ProvisionInput[] = [];
+      let next = 20000;
+      const provision = async (_admin: string, input: ProvisionInput): Promise<Provisioned> => {
+        inputs.push(input);
+        const role = roles[input.member];
+        const action = roleAction({
+          roleExists: Boolean(role),
+          createdByOctoforge: Boolean(role) && role?.oid === input.createdOid,
+          existingPassword: Boolean(input.existing),
+        });
+        if (action === 'refuse') {
+          throw new ActionError(
+            'conflict',
+            `role ${input.member} already exists and was not created by Octoforge: pass its current password`,
+          );
+        }
+        if (action === 'keep' && role?.password !== input.existing)
+          throw new ActionError('validation', `the password does not log in as ${input.member}`);
+        const password = action === 'keep' ? (input.existing as string) : input.generated;
+        const oid = role?.oid ?? next++;
+        roles[input.member] = { oid, password };
+        return { action, password, oid };
+      };
+      return { inputs, provision, roles };
+    }
+    const ADMIN = { FORGE_PG_ADMIN_URL: 'postgres://admin:adminpw@db.example.com:5432/octoforge' };
+    const adopt = (t: Awaited<ReturnType<typeof testApp>>, existingPassword?: string) =>
+      t.req('POST', '/api/members/alice-tool/database', { engine: 'postgres', existingPassword });
+
+    test('a role Octoforge did not create: refused without its password, nothing called', async () => {
+      const c = cluster({ 'alice-tool': { oid: 16384, password: 'old-pass' } });
+      const t = await testApp(member(), ADMIN, { provision: c.provision });
+      await withInstances(t, ['https://a.example.com']);
+      const r = await adopt(t);
+      expect(r.status).toBe(409);
+      expect(r.body.message).toBe(
+        'role alice-tool already exists and was not created by Octoforge: pass its current password',
+      );
+      expect(t.calls.filter((x) => x.url.endsWith('/database/adopt'))).toHaveLength(0);
+      expect(c.roles['alice-tool']?.password).toBe('old-pass');
+      const wrong = await adopt(t, 'not-it');
+      expect(wrong.status).toBe(400);
+      expect(wrong.body.message).toBe('the password does not log in as alice-tool');
+      expect(JSON.stringify(await listLog(t.db, { kind: 'adoption', limit: 10 }))).not.toContain('not-it');
+    });
+
+    test('its current password given: kept, handed over once, never stored, logged or returned', async () => {
+      const secret = 'old p@ss/w:rd%';
+      const c = cluster({ 'alice-tool': { oid: 16384, password: secret } });
+      const t = await testApp(member(), ADMIN, { provision: c.provision });
+      await withInstances(t, ['https://a.example.com', 'https://c.example.com']);
+      const r = await adopt(t, secret);
+      expect(r.status).toBe(200);
+      expect(c.roles['alice-tool']?.password).toBe(secret);
+      const calls = t.calls.filter((x) => x.url.endsWith('/database/adopt'));
+      expect(calls).toHaveLength(2);
+      const url = new URL((calls[0]?.body as { url: string } | undefined)?.url ?? '');
+      expect(decodeURIComponent(url.password)).toBe(secret);
+      expect(JSON.stringify(r.body)).not.toContain(encodeURIComponent(secret));
+      expect(JSON.stringify(r.body)).not.toContain(secret);
+      expect(t.store.size).toBe(0);
+      const log = JSON.stringify(await listLog(t.db, { kind: 'adoption', limit: 10 }));
+      expect(log).not.toContain(secret);
+      expect(log).not.toContain(encodeURIComponent(secret));
+      expect(log).toContain('password kept');
+      // Not created by Octoforge: a later adoption without the password is still refused.
+      expect((await adopt(t)).status).toBe(409);
+    });
+
+    test('a role Octoforge created: recorded, and a re-adoption rotates its password', async () => {
+      const c = cluster({});
+      const t = await testApp(member(), ADMIN, { provision: c.provision });
+      await withInstances(t, ['https://a.example.com']);
+      expect((await adopt(t)).status).toBe(200);
+      const first = c.roles['alice-tool']?.password;
+      expect(c.inputs[0]?.createdOid).toBeNull();
+      expect((await adopt(t)).status).toBe(200);
+      expect(c.inputs[1]?.createdOid).toBe(20000);
+      expect(c.roles['alice-tool']?.password).not.toBe(first);
+      const log = await listLog(t.db, { kind: 'adoption', limit: 10 });
+      expect(log.map((e) => e.detail.role)).toContain('new password');
+    });
+
+    test('a current password applies to Postgres only', async () => {
+      const t = await testApp(member(), { OCTOFORGE_SHARED_DATA: '/shared' });
+      await withInstances(t, ['https://a.example.com']);
+      const r = await t.req('POST', '/api/members/alice-tool/database', {
+        engine: 'sqlite',
+        existingPassword: 'x',
+      });
+      expect(r.status).toBe(400);
+    });
   });
 
   test('a failed copy skips the other instances', async () => {

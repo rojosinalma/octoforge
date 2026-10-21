@@ -32,7 +32,17 @@ const DeliverBody = z.object({
   installationId: z.number().int().positive().nullable().optional(),
 });
 const EnvBody = z.object({ installationId: z.number().int().positive().nullable().optional() });
-const AdoptBody = z.object({ engine: Engine });
+// existingPassword: the current password of a member role that already exists (memory only, this
+// request only; never logged, stored or returned). Empty means none.
+const AdoptBody = z.object({
+  engine: Engine,
+  existingPassword: z
+    .string()
+    .max(1024)
+    .refine((v) => !v.includes('\0'), 'must not contain a NUL byte')
+    .optional()
+    .transform((v) => v || undefined),
+});
 const LogQuery = z.object({
   kind: z.enum(['delivery', 'adoption']).optional(),
   member: z.string().optional(),
@@ -126,8 +136,8 @@ export function apiRoutes(deps: AppDeps) {
   });
 
   app.post('/members/:m/database', async (c) => {
-    const { engine } = await body(c, AdoptBody);
-    const out = await database.adopt(member(c.req.param('m')).name, engine);
+    const { engine, existingPassword } = await body(c, AdoptBody);
+    const out = await database.adopt(member(c.req.param('m')).name, engine, { existingPassword });
     const failed = out.results.filter((r) => !r.ok).length;
     return jsonOk(c, failed ? `${failed} of ${out.results.length} instances failed` : 'adopted', out);
   });
