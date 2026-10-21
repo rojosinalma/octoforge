@@ -6,7 +6,8 @@ import { testApp } from './helpers';
 const SERVER = path.resolve(import.meta.dir, '../src/index.ts');
 
 async function start(env: Record<string, string>) {
-  const proc = Bun.spawn(['bun', SERVER], {
+  // --no-env-file: a local .env in the working directory must not change what the test sees.
+  const proc = Bun.spawn(['bun', '--no-env-file', SERVER], {
     env: {
       PATH: process.env.PATH ?? '',
       HOME: process.env.HOME ?? '',
