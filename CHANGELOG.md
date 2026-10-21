@@ -6,6 +6,8 @@ All notable changes to Octoforge are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-10-21
+
 ## [0.1.3] - 2026-10-21
 
 ### Fixed
@@ -81,7 +83,8 @@ All notable changes to Octoforge are documented here. The format follows
 - `GET /health`, a container image with a health check, `compose.yaml`, and image publishing on tags.
 - `bin/verify` runs typecheck, lint, tests, build and a container smoke test after the index checks.
 
-[Unreleased]: https://github.com/rojosinalma/octoforge/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/rojosinalma/octoforge/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/rojosinalma/octoforge/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/rojosinalma/octoforge/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/rojosinalma/octoforge/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/rojosinalma/octoforge/compare/v0.1.0...v0.1.1

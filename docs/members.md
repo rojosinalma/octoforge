@@ -116,8 +116,9 @@ need to know where Octoforge runs.
   reports, else its base URL. `icon` is an absolute URL (instance URL plus the manifest `icon`).
 - Octoforge sends the list when an instance is added, changed or removed, at start-up, and again on a
   schedule (setting `siblingsResendMin`, default 60), so a restarted member gets it back.
-- With `OCTOFORGE_TOKEN` unset the member shows no switcher. A list older than three schedule periods
-  may be shown as stale but stays usable.
+- The member shows the switcher only while Octoforge is set up: `OCTOFORGE_TOKEN` is set **and** the
+  stored list is younger than three schedule periods (`updated_at`, 180 minutes by default). An older
+  list hides the switcher; nothing is shown as stale.
 
 ## 3. Database
 
