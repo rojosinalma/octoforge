@@ -108,12 +108,13 @@ export class MemberRegistry {
     return this.list().find((s) => s.name === name) ?? null;
   }
 
-  async client(baseUrl: string): Promise<MemberClient> {
+  async client(baseUrl: string, opts: { quiet?: boolean } = {}): Promise<MemberClient> {
     return new MemberClient({
       baseUrl,
       token: this.deps.token,
       timeoutMs: await this.deps.timeoutMs(),
       fetchImpl: this.deps.fetchImpl,
+      quiet: opts.quiet,
     });
   }
 
@@ -175,6 +176,7 @@ export class MemberRegistry {
       latencyMs: h.ms,
       error: h.error,
       github: null,
+      switcher: null,
     };
   }
 

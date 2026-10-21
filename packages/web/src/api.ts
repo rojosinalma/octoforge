@@ -16,6 +16,7 @@ import type {
   Settings,
   SettingsPatch,
   SharedAppView,
+  SiblingRun,
 } from '@octoforge/shared';
 import { API } from '@octoforge/shared';
 
@@ -134,6 +135,7 @@ export const api = {
       instanceIds,
       installationId,
     }),
+  sendSiblings: () => send<{ run: SiblingRun } & Message>('POST', API.siblingsSend),
   log: (q: { kind?: LogKind; member?: string; before?: string }) => {
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries(q)) if (v) p.set(k, v);

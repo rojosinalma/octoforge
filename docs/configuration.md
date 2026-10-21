@@ -13,8 +13,8 @@ Octoforge reads two kinds of configuration:
 |---|---|---|---|
 | `AUTH_PASSWORD` | one of the two | none | Password for the login page. |
 | `AUTH` | one of the two | none | `none` turns the login off. Set it only when a reverse proxy in front authenticates every request. Setting it together with `AUTH_PASSWORD` is refused. |
-| `OCTOFORGE_TOKEN` | for credentials and database | none | Bearer token for the member API, at least 32 characters (`openssl rand -hex 32`). Set the same value on every member. Without it only the index works. |
-| `PUBLIC_URL` | for GitHub Apps | none | Base URL of Octoforge as your browser reaches it. GitHub sends you back to `<PUBLIC_URL>/github/callback`. |
+| `OCTOFORGE_TOKEN` | for credentials and database | none | Bearer token for the member API, at least 32 characters (`openssl rand -hex 32`). Set the same value on every member. Without it only the index works (no sibling list either). |
+| `PUBLIC_URL` | for GitHub Apps and the tool switcher | none | Base URL of Octoforge as your browser reaches it. GitHub sends you back to `<PUBLIC_URL>/github/callback`. Without it, no sibling list is sent. |
 | `SESSION_SECRET` | no | generated | Signs the session cookie (at least 32 characters). When empty, one is generated and kept in `DATA_DIR/session.secret`. |
 | `DATABASE_URL` | no | `sqlite:<DATA_DIR>/octoforge.db` | Octoforge's own database. A `postgres://` URL puts its tables in schema `forge`. |
 | `FORGE_PG_ADMIN_URL` | for Postgres adoption | none | A role with `CREATEROLE` and `CREATE` on the shared database. Used only to create one role and one schema per member. For a member role that exists already, this role needs `ADMIN OPTION` on it, and you enter the role's current password on the Database page ([members](members.md#engines)). |
@@ -54,6 +54,7 @@ needs to hand the schema over.
 | Request timeout (`requestTimeoutMs`) | 8 s | Every call to an instance or to GitHub. |
 | Manifest cache (`manifestCacheMin`) | 10 min | How long a read manifest is reused. Refresh on the members page reads it again. |
 | Index refresh (`indexRefreshSec`) | 30 s | Health refresh on the members page. |
+| Resend sibling list (`siblingsResendMin`) | 60 min | Minutes between two pushes of the sibling list to every instance (5 to 1440). Octoforge also sends it at start-up and when an instance changes. **Send sibling list now** on the Settings page sends it at once. |
 | Keep log (`logKeepDays`) | 180 days | Older delivery and adoption rows are deleted (hourly). |
 | Log page (`logPageSize`) | 100 rows | Rows per page on the log. |
 | Theme (`theme`) | system | Primer theme of the UI. |
@@ -74,3 +75,16 @@ The address GitHub uses is picked in this order:
 1. The instance's public URL in Octoforge.
 2. The `public_url` the member reports in `GET /api/octoforge/status`, if it reports one.
 3. The base URL.
+
+## Tool switcher
+
+Octoforge sends every instance the **sibling list**: Octoforge itself and one entry per member with
+an instance (contract: [members](members.md#sibling-list)). A member uses it to show links to the
+other tools. The address of each member follows the order above (instance public URL, then the
+reported `public_url`, then the base URL), taken from the member's first instance.
+
+The members page shows, per instance, the last outcome: `switcher: sent … ago`, `switcher: not
+supported` (the instance answered 404; Octoforge stops sending to it until an instance changes, you
+press **Send sibling list now**, or Octoforge restarts) or `switcher: failed: <reason>`. Outcomes are
+kept in memory only. Without `OCTOFORGE_TOKEN` or `PUBLIC_URL`, nothing is sent and the log says why
+once.

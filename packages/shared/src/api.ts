@@ -40,6 +40,36 @@ export interface InstanceHealth {
   error: string | null;
   /** The GitHub credential the instance reports in its status; null when it was not asked or did not answer. */
   github: InstanceGithub | null;
+  /** Outcome of the last sibling list push to this instance; null = not sent since the start. */
+  switcher: SwitcherState | null;
+}
+
+/** Last sibling list push to an instance (memory only, gone after a restart). */
+export interface SwitcherState {
+  /** `unsupported`: the instance answered 404, so Octoforge stops sending until the next instance change. */
+  state: 'sent' | 'unsupported' | 'failed';
+  /** ISO time of the push. */
+  at: string;
+  /** Why it failed; null otherwise. */
+  reason: string | null;
+}
+
+/** Body of `PUT /api/octoforge/siblings` (docs/members.md, "Sibling list"). */
+export interface SiblingList {
+  forge: { title: string; url: string; icon: string };
+  members: { name: string; title: string; url: string; icon?: string }[];
+  updated_at: string;
+}
+
+/** Outcome of one push of the sibling list to every instance. */
+export interface SiblingRun {
+  /** Why nothing was sent (no OCTOFORGE_TOKEN or no PUBLIC_URL); null when the run happened. */
+  skipped: string | null;
+  /** Instances the list went to (unsupported ones are not called again). */
+  total: number;
+  sent: number;
+  unsupported: number;
+  failed: number;
 }
 
 /** Short form of a member's `status.github` for the index card. */
@@ -222,6 +252,7 @@ export const API = {
   sharedAppRecheck: '/api/shared-app/recheck',
   sharedAppCreate: '/api/shared-app/create',
   sharedAppDeliver: '/api/shared-app/deliver',
+  siblingsSend: '/api/siblings/send',
   log: '/api/log',
   settings: '/api/settings',
   capabilities: '/api/capabilities',

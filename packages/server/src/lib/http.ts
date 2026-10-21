@@ -8,17 +8,19 @@ export type HttpOutcome =
 
 /**
  * One outgoing call with a timeout, logged as `METHOD target → outcome (ms)`. `target` is what the log
- * shows: callers pass a URL with nothing secret in it (no codes, no tokens).
+ * shows: callers pass a URL with nothing secret in it (no codes, no tokens). `quiet` logs the call at
+ * debug only, for periodic calls whose caller logs a summary instead.
  */
 export async function timedFetch(
   subsystem: string,
   url: string,
-  init: RequestInit & { timeoutMs: number; target?: string; fetchImpl?: FetchLike },
+  init: RequestInit & { timeoutMs: number; target?: string; fetchImpl?: FetchLike; quiet?: boolean },
 ): Promise<HttpOutcome> {
-  const { timeoutMs, target = url, fetchImpl = fetch, ...rest } = init;
+  const { timeoutMs, target = url, fetchImpl = fetch, quiet = false, ...rest } = init;
   const method = (rest.method ?? 'GET').toUpperCase();
   const started = performance.now();
-  const logger = log(subsystem);
+  const base = log(subsystem);
+  const logger = quiet ? { ...base, info: base.debug, warn: base.debug } : base;
   try {
     const res = await fetchImpl(url, {
       ...rest,

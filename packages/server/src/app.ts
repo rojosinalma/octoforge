@@ -9,6 +9,7 @@ import { ActionError, type Credentials } from './lib/credentials';
 import type { Database } from './lib/database';
 import type { MemberRegistry } from './lib/members';
 import type { SharedApp } from './lib/shared-app';
+import type { Siblings } from './lib/siblings';
 import { errMessage, log } from './log';
 import { apiRoutes } from './routes/api';
 import { authRoutes } from './routes/auth';
@@ -23,6 +24,7 @@ export interface AppDeps {
   credentials: Credentials;
   database: Database;
   sharedApp: SharedApp;
+  siblings: Siblings;
   sessionSecret: string;
 }
 

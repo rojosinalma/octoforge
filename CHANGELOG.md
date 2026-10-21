@@ -25,6 +25,11 @@ All notable changes to Octoforge are documented here. The format follows
   (optional, contract stays 1). The member card and the Credentials page show reported gaps.
 - Member cards show the GitHub credential of each instance (`App acme-app (from Octoforge)`,
   `token (from .env)`, `none`).
+- Sibling list for the tool switcher: Octoforge sends every instance the list of tools
+  (`PUT /api/octoforge/siblings`) at start-up, after each instance change and every
+  `siblingsResendMin` minutes (new setting, default 60). A removed instance gets
+  `DELETE /api/octoforge/siblings`. The Settings page has **Send sibling list now**; member cards
+  show the last outcome per instance (sent, not supported, failed).
 
 ### Changed
 

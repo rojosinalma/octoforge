@@ -39,6 +39,8 @@ export const Settings = z.object({
     .string()
     .regex(/^([A-Za-z0-9][A-Za-z0-9-]{0,38})?$/)
     .default(''),
+  /** Minutes between two pushes of the sibling list to every instance (it is also sent on every instance change). */
+  siblingsResendMin: z.number().int().min(5).max(1440).default(60),
   theme: Theme.default('auto'),
 });
 export type Settings = z.infer<typeof Settings>;

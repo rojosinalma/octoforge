@@ -5,6 +5,7 @@ import type { AppDeps } from '../app';
 import { ActionError } from '../lib/credentials';
 import {
   addInstance,
+  getInstance,
   InstancePatch,
   listInstances,
   NewInstance,
@@ -101,7 +102,7 @@ export function apiRoutes(deps: AppDeps) {
     const fresh = c.req.query('fresh') === '1';
     const sharedApp = await deps.sharedApp.ref();
     const cards = await Promise.all(members.list().map((s) => members.card(s, { fresh, sharedApp })));
-    return jsonOk(c, `${cards.length} members`, { members: cards });
+    return jsonOk(c, `${cards.length} members`, { members: deps.siblings.decorate(cards) });
   });
 
   app.get('/members/:m', async (c) => {
@@ -109,7 +110,8 @@ export function apiRoutes(deps: AppDeps) {
       fresh: c.req.query('fresh') === '1',
       sharedApp: await deps.sharedApp.ref(),
     });
-    return jsonOk(c, card.name, { member: card });
+    const [decorated] = deps.siblings.decorate([card]);
+    return jsonOk(c, card.name, { member: decorated });
   });
 
   app.get('/members/:m/status', async (c) => {
@@ -223,6 +225,7 @@ export function apiRoutes(deps: AppDeps) {
       throw new ActionError('conflict', `${input.baseUrl} is already an instance of ${input.member}`);
     }
     const instance = await addInstance(db, input);
+    deps.siblings.changed();
     return jsonOk(c, `added ${instance.baseUrl}`, { instance });
   });
 
@@ -230,15 +233,31 @@ export function apiRoutes(deps: AppDeps) {
     const patch = await body(c, InstancePatch);
     const instance = await updateInstance(db, Id.parse(c.req.param('id')), patch);
     if (!instance) throw new ActionError('not_found', 'no such instance');
+    deps.siblings.changed();
     return jsonOk(c, instance.publicUrl ? `public URL set to ${instance.publicUrl}` : 'public URL cleared', {
       instance,
     });
   });
 
   app.delete('/instances/:id', async (c) => {
-    const removed = await removeInstance(db, Id.parse(c.req.param('id')));
-    if (!removed) throw new ActionError('not_found', 'no such instance');
+    const inst = await getInstance(db, Id.parse(c.req.param('id')));
+    if (!inst) throw new ActionError('not_found', 'no such instance');
+    // Best effort: the removed instance drops its switcher before Octoforge forgets it.
+    await deps.siblings.retract(inst);
+    if (!(await removeInstance(db, inst.id))) throw new ActionError('not_found', 'no such instance');
+    deps.siblings.changed();
     return jsonOk(c, 'instance removed');
+  });
+
+  // Sibling list --------------------------------------------------------------
+
+  app.post('/siblings/send', async (c) => {
+    const run = await deps.siblings.sendNow();
+    if (run.skipped) return jsonErr(c, 'unavailable', `sibling list not sent: ${run.skipped}`);
+    const parts = [`sent to ${run.sent} of ${run.total} instances`];
+    if (run.unsupported) parts.push(`${run.unsupported} without a switcher`);
+    if (run.failed) parts.push(`${run.failed} failed`);
+    return jsonOk(c, parts.join(', '), { run });
   });
 
   // Pending credentials ------------------------------------------------------

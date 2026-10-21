@@ -1,4 +1,4 @@
-import type { InstanceHealth, MemberCard } from '@octoforge/shared';
+import type { InstanceHealth, MemberCard, SwitcherState } from '@octoforge/shared';
 import {
   GearIcon,
   KeyIcon,
@@ -15,7 +15,7 @@ import { Page, StatusDot } from '../components/Page';
 import { useApp } from '../hooks/useApp';
 import { useAsync, useInterval } from '../hooks/useAsync';
 import { useToast } from '../hooks/useToast';
-import { githubSummary, hostOf } from '../lib/format';
+import { githubSummary, hostOf, relativeTime } from '../lib/format';
 import { linkClick, navigate, useRoute } from '../router';
 
 function MemberIcon({ card }: { card: MemberCard }) {
@@ -39,6 +39,13 @@ function MemberIcon({ card }: { card: MemberCard }) {
   );
 }
 
+/** `switcher: sent 3 minutes ago`, `switcher: not supported`, `switcher: failed: <reason>`. */
+function switcherText(s: SwitcherState): string {
+  if (s.state === 'sent') return `switcher: sent ${relativeTime(s.at)}`;
+  if (s.state === 'unsupported') return 'switcher: not supported';
+  return `switcher: failed: ${s.reason ?? 'no reason given'}`;
+}
+
 function InstanceLine({ h, github }: { h: InstanceHealth; github: boolean }) {
   const state = h.up ? `up, ${h.latencyMs} ms` : `down: ${h.error ?? 'no answer'}`;
   const g = h.github;
@@ -58,6 +65,11 @@ function InstanceLine({ h, github }: { h: InstanceHealth; github: boolean }) {
         <Label variant="attention" size="small">
           missing: {g.missing.join(', ')}
         </Label>
+      )}
+      {h.switcher && (
+        <small className={h.switcher.state === 'failed' ? 'fg-danger' : 'fg-muted'}>
+          {switcherText(h.switcher)}
+        </small>
       )}
     </li>
   );

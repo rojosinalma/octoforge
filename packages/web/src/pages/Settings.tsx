@@ -1,6 +1,6 @@
 import type { Instance, Settings as SettingsT, Theme } from '@octoforge/shared';
 import { Settings as SettingsSchema } from '@octoforge/shared';
-import { PencilIcon, PlusIcon, TrashIcon } from '@primer/octicons-react';
+import { PaperAirplaneIcon, PencilIcon, PlusIcon, TrashIcon } from '@primer/octicons-react';
 import { Button, Dialog, FormControl, IconButton, Link, Select, TextInput, useConfirm } from '@primer/react';
 import { Tooltip } from '@primer/react/next';
 import { type FormEvent, useEffect, useState } from 'react';
@@ -325,11 +325,72 @@ function Instances() {
   );
 }
 
+/** Schedule of the sibling list and a manual push. */
+function Switcher() {
+  const { capabilities } = useApp();
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+  const missing = !capabilities
+    ? null
+    : !capabilities.memberToken
+      ? 'OCTOFORGE_TOKEN'
+      : !capabilities.publicUrl
+        ? 'PUBLIC_URL'
+        : null;
+  const sendNow = async () => {
+    setBusy(true);
+    try {
+      const r = await api.sendSiblings();
+      toast('Sibling list sent', {
+        description: r.message,
+        variant: r.run.failed ? 'warning' : 'success',
+      });
+    } catch (err) {
+      toast('Sibling list not sent', { description: (err as Error).message, variant: 'critical' });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Section title="Tool switcher">
+      <p className="fg-muted section-lead">
+        Octoforge sends every instance the list of tools (Octoforge and one address per member), so each tool
+        can link to the others. It sends the list when an instance changes, at start-up and on the schedule
+        below.
+      </p>
+      <div className="settings-grid">
+        <NumberSetting
+          k="siblingsResendMin"
+          label="Resend sibling list"
+          unit="min"
+          help="Minutes between two pushes, so a restarted member gets its switcher back (5 to 1440)."
+        />
+        <FormControl>
+          <FormControl.Label>Send now</FormControl.Label>
+          <Button
+            leadingVisual={PaperAirplaneIcon}
+            onClick={() => void sendNow()}
+            disabled={busy || Boolean(missing)}
+          >
+            {busy ? 'Sending…' : 'Send sibling list now'}
+          </Button>
+          <FormControl.Caption>
+            {missing
+              ? `Set ${missing} in .env to send the list.`
+              : 'Also retries instances that had no switcher.'}
+          </FormControl.Caption>
+        </FormControl>
+      </div>
+    </Section>
+  );
+}
+
 export function SettingsPage() {
   const { settings, updateSettings } = useApp();
   return (
     <Page title="Settings" lead="Saved at once; every value applies on its next use.">
       <Instances />
+      <Switcher />
       <Section title="Credentials">
         <div className="settings-grid">
           <NumberSetting

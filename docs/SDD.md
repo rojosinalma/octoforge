@@ -88,6 +88,17 @@ API never returns them except in the one-time `.env` block.
   worked, on the others with `copy: false`. The password lives only for that call.
 - **Database adoption (SQLite)**: with `OCTOFORGE_SHARED_DATA`, the URL is `sqlite:<dir>/<member>.db`.
 - **Release**: `DELETE /api/octoforge/database` (or `/github`) on one instance; logged.
+- **Sibling list**: Octoforge builds one list (itself at `PUBLIC_URL`, then one entry per member with
+  an instance: the first instance's public URL, else the `public_url` it reports, else its base URL,
+  the manifest `title` and an absolute `icon`) and sends it with `PUT /api/octoforge/siblings` to
+  every instance of every member: shortly after start-up, after each instance add, change or
+  removal, every `siblingsResendMin` minutes and on "Send sibling list now". One run at a time (a
+  trigger during a run queues one more), a few calls in parallel, each with the request timeout. A
+  404 marks the instance "not supported" in memory until an instance changes, a manual send or a
+  restart. A removed instance first gets `DELETE /api/octoforge/siblings` (best effort). Without
+  `OCTOFORGE_TOKEN` or `PUBLIC_URL` nothing is sent, and the reason is logged once. Each run logs
+  one summary line; each call is logged at debug. The members page shows the last outcome per
+  instance.
 
 ## Configuration surface
 
@@ -132,12 +143,13 @@ with `OCTOFORGE_LEAK_PATTERNS`).
 | Public address of an instance | Optional `public_url` per instance, else the member's reported `public_url` in `/status` (optional field, contract stays 1), else the base URL | The base URL is where Octoforge calls the member, often a private name; GitHub needs an address it can reach for webhooks and the setup page | 2026-10-21 |
 | Existing member roles | Keep the password of a role Octoforge did not create (operator enters it, checked by a login first); rotate only roles recorded in `created_roles` by oid; `search_path` set `IN DATABASE` | A member may already use its role for its own database: a new password would break its `DATABASE_URL` and the rollback; a cluster-wide `search_path` would change it there too | 2026-10-21 |
 | GitHub App | One shared GitHub App for all members (2026-10-21): an existing App is registered by id + key (key in memory only; id, slug, owner, permissions and installations kept in `settings` row `shared_app`), or created from the union of every member's `github.app` (highest level wins, one `webhook_path` at most); gaps closed on GitHub's permission and installation pages, then re-checked with `GET /app`. Per-member Apps stay as the alternative | One key, one set of installations and one place to change permissions for every tool; GitHub has no API to change an App's permissions, so Octoforge shows the exact gaps and links the pages | 2026-10-21 |
+| Sibling list pushed by Octoforge (2026-10-21) | Octoforge pushes the family list to every instance (`PUT /api/octoforge/siblings`) on changes, at start-up and every `siblingsResendMin`; outcomes kept in memory only, a 404 stops the pushes to that instance until an instance changes | Members never need to know where Octoforge or the other tools run; a restarted member gets the list back by the next push; no new table and no polling from the members | 2026-10-21 |
 | Auth | Fail-closed password login (`AUTH_PASSWORD`), `AUTH=none` only on purpose | The app creates credentials; it must never start open by accident | 2026-10-21 |
 
 ## Current scope
 
 The index with live health, GitHub App and token creation with delivery to every instance of a
-member, and adoption of member databases into a shared Postgres database or SQLite directory.
+member, the sibling list for the tool switcher on every instance, and adoption of member databases into a shared Postgres database or SQLite directory.
 Views that span members read through `octoforge_reader`; writes always go through the member APIs.
 
 ## Operations

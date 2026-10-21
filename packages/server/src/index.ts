@@ -17,7 +17,7 @@ try {
 }
 configureLog(env.LOG_LEVEL);
 
-const { app, db, store } = await build(env);
+const { app, db, store, siblings } = await build(env);
 boot.info('database ready', { db: db.describe });
 
 const server = Bun.serve({ port: env.PORT, hostname: '0.0.0.0', fetch: app.fetch, idleTimeout: 255 });
@@ -46,6 +46,8 @@ async function housekeeping() {
 }
 void housekeeping();
 const timer = setInterval(() => void housekeeping(), 3_600_000);
+// Sibling list: first push shortly after start-up, then every siblingsResendMin.
+siblings.start();
 
 process.on('unhandledRejection', (err) => boot.error('unhandled rejection', { reason: errMessage(err) }));
 process.on('uncaughtException', (err) => boot.error('uncaught exception', { reason: errMessage(err) }));
@@ -56,6 +58,7 @@ async function shutdown(signal: string) {
   shuttingDown = true;
   boot.info('shutting down', { signal });
   clearInterval(timer);
+  siblings.stop();
   store.clear();
   await server.stop(true);
   await db.close();

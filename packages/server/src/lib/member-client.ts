@@ -1,4 +1,4 @@
-import { type Manifest, MemberStatus, parseManifest } from '@octoforge/shared';
+import { type Manifest, MemberStatus, parseManifest, type SiblingList } from '@octoforge/shared';
 import { type FetchLike, readJson, timedFetch } from './http';
 
 /** Failure of a member call, with a reason a person can act on. */
@@ -14,6 +14,8 @@ export interface MemberClientOptions {
   token?: string;
   timeoutMs: number;
   fetchImpl?: FetchLike;
+  /** Log every call at debug only (periodic calls whose caller logs a summary). */
+  quiet?: boolean;
 }
 
 export interface GithubAnswer {
@@ -95,6 +97,15 @@ export class MemberClient {
     return this.call<AdoptAnswer>('DELETE', `${BASE}/database`);
   }
 
+  /** Optional route: a member without the switcher answers 404 (status 404 in the result). */
+  putSiblings(body: SiblingList): Promise<MemberResult<{ message: string }>> {
+    return this.call<{ message: string }>('PUT', `${BASE}/siblings`, body);
+  }
+
+  deleteSiblings(): Promise<MemberResult<{ message: string }>> {
+    return this.call<{ message: string }>('DELETE', `${BASE}/siblings`);
+  }
+
   /** GET <base><path>: up when it answers 2xx. */
   async health(
     path: string,
@@ -139,6 +150,7 @@ export class MemberClient {
       body: body === undefined ? undefined : JSON.stringify(body),
       timeoutMs: opts.timeoutMs ?? this.opts.timeoutMs,
       fetchImpl: this.opts.fetchImpl,
+      quiet: this.opts.quiet,
     });
     if (!out.ok) return { ok: false, kind: out.kind, status: null, message: out.message, ms: out.ms };
     const { res, ms } = out;
