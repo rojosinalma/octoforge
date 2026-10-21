@@ -86,6 +86,11 @@ The same token value is set in Octoforge's `.env` and in each member's `.env`.
 Credentials never appear in a log line or an answer. A member that cannot apply a credential
 without a restart says so with `restart_required: true`.
 
+A member should store a delivered credential **encrypted at rest** (for example AES-256-GCM with a
+key derived from its own session secret): Octoforge's read-only role can `SELECT` every member
+schema, so a plain value would be readable through it. When the key changes and the stored value no
+longer decrypts, the member falls back to its env value and logs a warning.
+
 ## 3. Database
 
 Standalone, a member uses its own `DATABASE_URL`, SQLite by default. Under Octoforge it can move
@@ -99,16 +104,24 @@ member in a shared directory. Each member keeps owning its tables and runs its o
 1. Connect to `url`, create `schema` if it is missing, run the member's own migrations there.
 2. With `copy: true` (the default), copy every row from the current database, then compare row
    counts per table. Any difference aborts the adoption and leaves the current database in use.
+   A target that already holds rows, or that is the database in use, is refused (409, with the row
+   counts per table). With `copy: false` the member only migrates and answers the counts it finds.
 3. Write `url` and `schema` to `DATA_DIR/octoforge-database.json` (mode 0600). At start-up this file
-   overrides `DATABASE_URL` / `DATABASE_SCHEMA`.
+   overrides `DATABASE_URL` / `DATABASE_SCHEMA`. A malformed file stops the start-up with the
+   reason; the member never falls back silently, so writes never split between two databases.
 4. Answer `{ok, message, tables: {<table>: <rows>}, restart_required: true}`.
 
 The call is synchronous: the member answers when the copy and the count check are done. Octoforge
 waits up to its `adoptTimeoutSec` setting (300 s by default) for the first instance.
 
 Members with several instances on one database get the call once with `copy: true`, and on every
-other instance with `copy: false`. When the first instance fails, the others are not called. The old database stays untouched, so `DELETE /database` plus a
-restart rolls back; rows written after the adoption stay in the new database only.
+other instance with `copy: false`. When the first instance fails, the others are not called. The
+old database stays untouched, so `DELETE /database` plus a restart rolls back; rows written after
+the adoption stay in the new database only.
+
+On Postgres a member names its schema in every query rather than relying on `search_path`, keeps its
+migration journal inside its own schema, and starts with a role that owns only that schema (no
+`CREATE` on the database). Pool and TLS options go in the URL query (`sslmode=require`).
 
 ### Engines
 
