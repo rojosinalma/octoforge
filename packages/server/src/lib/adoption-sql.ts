@@ -34,6 +34,8 @@ export interface AdoptionSqlInput {
   /** The member's role already exists: a second adoption rotates its password. */
   roleExists: boolean;
   readerExists: boolean;
+  /** The shared database: members and the reader need CONNECT when PUBLIC has none. */
+  database: string;
 }
 
 /** Statements run in one transaction by the admin role (CREATEROLE and CREATE on the database). */
@@ -45,6 +47,8 @@ export function buildAdoptionSql(input: AdoptionSqlInput): string[] {
   const schema = quoteIdent(input.member);
   const reader = quoteIdent(READER_ROLE);
   const pw = quoteLiteral(input.password);
+  if (!input.database) throw new Error('the admin URL names no database');
+  const database = quoteIdent(input.database);
   return [
     // A CREATEROLE admin may only touch LOGIN and PASSWORD of an existing role (Postgres 16+ rules).
     input.roleExists
@@ -57,6 +61,7 @@ export function buildAdoptionSql(input: AdoptionSqlInput): string[] {
     `REVOKE ALL ON SCHEMA ${schema} FROM PUBLIC`,
     `ALTER ROLE ${role} SET search_path = ${schema}`,
     ...(input.readerExists ? [] : [`CREATE ROLE ${reader} WITH NOLOGIN`]),
+    `GRANT CONNECT ON DATABASE ${database} TO ${role}, ${reader}`,
     `GRANT USAGE ON SCHEMA ${schema} TO ${reader}`,
     `GRANT SELECT ON ALL TABLES IN SCHEMA ${schema} TO ${reader}`,
     `ALTER DEFAULT PRIVILEGES FOR ROLE ${role} IN SCHEMA ${schema} GRANT SELECT ON TABLES TO ${reader}`,

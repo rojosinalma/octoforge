@@ -43,6 +43,7 @@ export async function provisionPostgres(adminUrl: string, member: string, passwo
         password,
         roleExists: Boolean(role),
         readerExists: Boolean(reader),
+        database: decodeURIComponent(new URL(adminUrl).pathname.replace(/^\//, '')),
       })) {
         await tx.unsafe(stmt);
       }

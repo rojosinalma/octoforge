@@ -6,6 +6,11 @@ All notable changes to Octoforge are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Postgres adoption grants `CONNECT` on the shared database to the member role and `octoforge_reader`,
+  so adoption works on databases where `PUBLIC` has no privileges.
+
 ## [0.1.0] - 2026-10-21
 
 ### Added

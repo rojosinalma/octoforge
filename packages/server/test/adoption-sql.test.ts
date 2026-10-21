@@ -13,7 +13,13 @@ const PW = 'a1'.repeat(16);
 describe('buildAdoptionSql', () => {
   test('first adoption: role, schema owned by it, reader role and grants', () => {
     expect(
-      buildAdoptionSql({ member: 'alice-tool', password: PW, roleExists: false, readerExists: false }),
+      buildAdoptionSql({
+        member: 'alice-tool',
+        password: PW,
+        roleExists: false,
+        readerExists: false,
+        database: 'shared',
+      }),
     ).toEqual([
       `CREATE ROLE "alice-tool" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '${PW}'`,
       'GRANT "alice-tool" TO CURRENT_USER',
@@ -22,6 +28,7 @@ describe('buildAdoptionSql', () => {
       'REVOKE ALL ON SCHEMA "alice-tool" FROM PUBLIC',
       'ALTER ROLE "alice-tool" SET search_path = "alice-tool"',
       'CREATE ROLE "octoforge_reader" WITH NOLOGIN',
+      'GRANT CONNECT ON DATABASE "shared" TO "alice-tool", "octoforge_reader"',
       'GRANT USAGE ON SCHEMA "alice-tool" TO "octoforge_reader"',
       'GRANT SELECT ON ALL TABLES IN SCHEMA "alice-tool" TO "octoforge_reader"',
       'ALTER DEFAULT PRIVILEGES FOR ROLE "alice-tool" IN SCHEMA "alice-tool" GRANT SELECT ON TABLES TO "octoforge_reader"',
@@ -34,13 +41,14 @@ describe('buildAdoptionSql', () => {
       password: PW,
       roleExists: true,
       readerExists: true,
+      database: 'shared',
     });
     expect(stmts[0]).toBe(`ALTER ROLE "alice-tool" WITH LOGIN PASSWORD '${PW}'`);
     expect(stmts.some((s) => s.startsWith('CREATE ROLE'))).toBe(false);
   });
 
   test('refuses names that are not members or are reserved, and odd passwords', () => {
-    const base = { password: PW, roleExists: false, readerExists: false };
+    const base = { password: PW, roleExists: false, readerExists: false, database: 'shared' };
     for (const member of [
       'Alice',
       'a"; DROP ROLE x; --',
@@ -53,6 +61,7 @@ describe('buildAdoptionSql', () => {
       expect(() => buildAdoptionSql({ ...base, member })).toThrow();
     }
     expect(() => buildAdoptionSql({ ...base, member: 'alice-tool', password: "x' OR '1" })).toThrow();
+    expect(() => buildAdoptionSql({ ...base, member: 'alice-tool', database: '' })).toThrow();
   });
 
   test('quoting and passwords', () => {
