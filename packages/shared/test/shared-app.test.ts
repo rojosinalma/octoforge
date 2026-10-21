@@ -219,3 +219,20 @@ describe('MemberStatus optional GitHub fields', () => {
     expect(s.github?.missing).toBeUndefined();
   });
 });
+
+describe('organization permissions on personal installations', () => {
+  test('members:read is no gap on a User installation, a gap on an Organization one', () => {
+    const m = permissionMatrix({
+      app: { members: 'read', contents: 'write' },
+      installations: [
+        { id: 1, account: 'alice', accountType: 'User', permissions: { contents: 'write' } },
+        { id: 2, account: 'acme', accountType: 'Organization', permissions: { contents: 'write' } },
+      ],
+      members: [{ name: 'tool', permissions: { members: 'read', contents: 'write' } }],
+    });
+    expect(m.installationMissing[1]).toEqual([]);
+    expect(m.installationMissing[2]).toEqual(['members:read']);
+    const row = m.rows.find((r) => r.permission === 'members');
+    expect(row?.installations.map((c) => c.gap)).toEqual([false, true]);
+  });
+});

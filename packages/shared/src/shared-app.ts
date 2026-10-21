@@ -103,6 +103,40 @@ export function buildSharedAppManifest(input: SharedManifestInput): GitHubAppMan
   return out;
 }
 
+/**
+ * GitHub's organization permissions. An installation on a personal account never receives them, so
+ * they are not a gap there (`members` is the common case).
+ */
+export const ORGANIZATION_PERMISSIONS: ReadonlySet<string> = new Set([
+  'members',
+  'organization_administration',
+  'organization_custom_roles',
+  'organization_custom_org_roles',
+  'organization_custom_properties',
+  'organization_copilot_seat_management',
+  'organization_announcement_banners',
+  'organization_events',
+  'organization_hooks',
+  'organization_personal_access_tokens',
+  'organization_personal_access_token_requests',
+  'organization_plan',
+  'organization_projects',
+  'organization_packages',
+  'organization_secrets',
+  'organization_self_hosted_runners',
+  'organization_user_blocking',
+  'team_discussions',
+]);
+
+/** What an installation can receive: a personal account drops the organization permissions. */
+export function applicableToAccount(
+  needed: Record<string, string>,
+  accountType: AccountType | undefined,
+): Record<string, string> {
+  if (accountType === 'Organization' || accountType === undefined) return needed;
+  return Object.fromEntries(Object.entries(needed).filter(([p]) => !ORGANIZATION_PERMISSIONS.has(p)));
+}
+
 /** Needed permissions the granted set does not cover, as `"<permission>:<level>"`, sorted. */
 export function missingPermissions(
   granted: Record<string, string> | null | undefined,
@@ -118,7 +152,12 @@ export interface MatrixInput {
   /** What the App grants; null when Octoforge does not know the App yet. */
   app: Record<string, string> | null;
   /** What each installation accepted. */
-  installations: { id: number; account: string; permissions: Record<string, string> }[];
+  installations: {
+    id: number;
+    account: string;
+    accountType?: AccountType;
+    permissions: Record<string, string>;
+  }[];
   /** What each member needs. */
   members: { name: string; permissions: Record<string, string> }[];
 }
@@ -166,7 +205,8 @@ export function permissionMatrix(input: MatrixInput): PermissionMatrix {
       app: { level: appLevel, gap: input.app !== null && levelRank(appLevel) < levelRank(need) },
       installations: input.installations.map((i) => {
         const level = i.permissions[permission] ?? null;
-        return { level, gap: levelRank(level) < levelRank(need) };
+        const applies = permission in applicableToAccount({ [permission]: need ?? 'read' }, i.accountType);
+        return { level, gap: applies && levelRank(level) < levelRank(need) };
       }),
       members: input.members.map((m) => {
         const level = m.permissions[permission] ?? null;
@@ -178,7 +218,10 @@ export function permissionMatrix(input: MatrixInput): PermissionMatrix {
     rows,
     appMissing: input.app ? missingPermissions(input.app, needed) : [],
     installationMissing: Object.fromEntries(
-      input.installations.map((i) => [i.id, missingPermissions(i.permissions, needed)]),
+      input.installations.map((i) => [
+        i.id,
+        missingPermissions(i.permissions, applicableToAccount(needed, i.accountType)),
+      ]),
     ),
     memberMissing: Object.fromEntries(
       input.members.map((m) => [m.name, input.app ? missingPermissions(input.app, m.permissions) : []]),

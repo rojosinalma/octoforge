@@ -83,6 +83,8 @@ The same token value is set in Octoforge's `.env` and in each member's `.env`.
 | `DELETE /github` | Drops the delivered credential; the member goes back to its env value. |
 | `POST /database/adopt` | Body `{url, schema, copy}`. Moves the member to the database at `url` (section 3). |
 | `DELETE /database` | Drops the adopted database setting; the member goes back to its `DATABASE_URL` on the next start. |
+| `PUT /siblings` | Body: the sibling list (below). The member stores it in its settings and renders a switcher with links to Octoforge and every member. Answer `{ok, message}`. Optional route: a member without it answers 404 and Octoforge stops sending. |
+| `DELETE /siblings` | Clears the stored list; the switcher disappears. |
 
 Credentials never appear in a log line or an answer. A member that cannot apply a credential
 without a restart says so with `restart_required: true`.
@@ -91,6 +93,31 @@ A member should store a delivered credential **encrypted at rest** (for example 
 key derived from its own session secret): Octoforge's read-only role can `SELECT` every member
 schema, so a plain value would be readable through it. When the key changes and the stored value no
 longer decrypts, the member falls back to its env value and logs a warning.
+
+### Sibling list
+
+Octoforge pushes the family to every instance, so each tool can link to the others. Members do not
+need to know where Octoforge runs.
+
+```json
+{
+  "forge": { "title": "Octoforge", "url": "https://forge.example.com", "icon": "https://forge.example.com/favicon.svg" },
+  "members": [
+    { "name": "octotally", "title": "Octotally", "url": "https://tally.example.com", "icon": "https://tally.example.com/favicon.svg" },
+    { "name": "octowarden", "title": "Octowarden", "url": "https://warden.example.com", "icon": "https://warden.example.com/favicon.svg" }
+  ],
+  "updated_at": "2026-10-21T12:00:00Z"
+}
+```
+
+- `members` lists every member with a configured instance, the receiving member included; it marks
+  itself by `name`. One entry per member: the first instance in Octoforge's list.
+- `url` is the address a browser uses: the instance's public URL, else the `public_url` the member
+  reports, else its base URL. `icon` is an absolute URL (instance URL plus the manifest `icon`).
+- Octoforge sends the list when an instance is added, changed or removed, at start-up, and again on a
+  schedule (setting `siblingsResendMin`, default 60), so a restarted member gets it back.
+- With `OCTOFORGE_TOKEN` unset the member shows no switcher. A list older than three schedule periods
+  may be shown as stale but stays usable.
 
 ## 3. Database
 
