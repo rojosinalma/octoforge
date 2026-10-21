@@ -134,5 +134,12 @@ export const MemberStatus = z.object({
     })
     .nullable()
     .default(null),
+  /** Optional: the address GitHub and browsers use, when it differs from the URL Octoforge calls. */
+  public_url: z
+    .string()
+    .regex(/^https?:\/\/[^\s/]+/)
+    .nullable()
+    .optional()
+    .catch(null),
 });
 export type MemberStatus = z.infer<typeof MemberStatus>;

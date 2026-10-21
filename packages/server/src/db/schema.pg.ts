@@ -15,6 +15,8 @@ export const instances = pgTable(
     id: serial('id').primaryKey(),
     member: text('member').notNull(),
     baseUrl: text('base_url').notNull(),
+    /** Where GitHub and browsers reach the instance, when it differs from base_url. */
+    publicUrl: text('public_url'),
     label: text('label').notNull().default(''),
     createdAt: text('created_at').notNull(),
   },

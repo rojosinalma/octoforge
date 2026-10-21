@@ -35,7 +35,7 @@ files, additive only, applied at start-up.
 | Table | Holds |
 |---|---|
 | `settings` | key/value (JSON) rows over the defaults of the settings schema; read at use time |
-| `instances` | member, base URL, label: where each member runs |
+| `instances` | member, base URL, optional public URL, label: where each member runs and where GitHub reaches it |
 | `deliveries` | time, member, target (instance URL or `env block`), kind (`app`, `pat`), ok, message, detail |
 | `adoptions` | time, member, target, engine (`postgres`, `sqlite`, `release`), ok, message, detail |
 
@@ -57,7 +57,7 @@ API never returns them except in the one-time `.env` block.
   cached for `manifestCacheMin`. Each instance is probed on the manifest's `health` path. A member
   without a manifest still gets a card from its submodule name and homepage.
 - **GitHub App**: Octoforge builds the App manifest from the member's `github.app` plus the name,
-  homepage, hook URL (instance base URL + `webhook_path`), `setup_url` and `redirect_url`
+  homepage, hook URL (the instance's public address + `webhook_path`), `setup_url` and `redirect_url`
   (`PUBLIC_URL/github/callback`), keeps a random `state` in memory and lets the browser post the
   manifest to GitHub (personal account or organisation). The callback checks the `state` (single
   use), exchanges the code at `POST /app-manifests/{code}/conversions`, keeps the key and webhook
@@ -116,6 +116,7 @@ with `OCTOFORGE_LEAK_PATTERNS`).
 | Database | SQLite by default, Postgres optional (schema `forge`); member databases one schema per member on Postgres or one file per member in a shared directory; no secrets stored | Zero setup by default; one shared database when several members run; each member keeps owning its tables | 2026-10-21 |
 | Credential delivery | Through each member's API (`PUT /api/octoforge/github`, bearer `OCTOFORGE_TOKEN`); a one-time `.env` block as fallback | No credential ever lands on disk in Octoforge; members without the API still get a copyable result | 2026-10-21 |
 | Secrets | Memory only, with a TTL and a size cap from settings, dropped on delivery | A credential exists in Octoforge only for the minutes between creation and hand-over | 2026-10-21 |
+| Public address of an instance | Optional `public_url` per instance, else the member's reported `public_url` in `/status` (optional field, contract stays 1), else the base URL | The base URL is where Octoforge calls the member, often a private name; GitHub needs an address it can reach for webhooks and the setup page | 2026-10-21 |
 | Auth | Fail-closed password login (`AUTH_PASSWORD`), `AUTH=none` only on purpose | The app creates credentials; it must never start open by accident | 2026-10-21 |
 
 ## Current scope

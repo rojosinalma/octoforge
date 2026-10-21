@@ -6,6 +6,8 @@ All notable changes to Octoforge are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-21
+
 ### Added
 
 - Web app (one container, port 3000) with a password login that refuses to start without an auth
@@ -20,5 +22,12 @@ All notable changes to Octoforge are documented here. The format follows
   `octoforge_reader`) or a shared SQLite directory; release it again.
 - Log page with every delivery and adoption.
 - Member contract v1 (`docs/members.md`).
+- Optional public URL per instance (Settings), for instances whose base URL GitHub cannot reach.
+  GitHub App webhooks and setup pages go to that URL, else to the `public_url` a member reports in
+  `GET /api/octoforge/status` (new optional field, contract stays 1), else to the base URL. The
+  Credentials page shows which one applies.
 - `GET /health`, a container image with a health check, `compose.yaml`, and image publishing on tags.
 - `bin/verify` runs typecheck, lint, tests, build and a container smoke test after the index checks.
+
+[Unreleased]: https://github.com/rojosinalma/octoforge/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/rojosinalma/octoforge/releases/tag/v0.1.0

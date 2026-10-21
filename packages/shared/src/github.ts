@@ -13,8 +13,8 @@ export interface AppManifestInput {
   name: string;
   /** Homepage of the App (the member's repository). */
   homepage: string;
-  /** Base URL of the instance that receives the webhooks (and the setup redirect). */
-  instanceUrl: string;
+  /** Public address of the instance: GitHub sends the webhooks and the setup redirect there. */
+  publicUrl: string;
   /** Octoforge's own callback that exchanges the code. */
   callbackUrl: string;
 }
@@ -41,7 +41,7 @@ export function buildAppManifest(input: AppManifestInput): GitHubAppManifest {
   const name = input.name.trim();
   if (!name) throw new Error('the App needs a name');
   if (name.length > APP_NAME_MAX) throw new Error(`App names are at most ${APP_NAME_MAX} characters`);
-  const base = trimSlash(input.instanceUrl);
+  const base = trimSlash(input.publicUrl);
   const out: GitHubAppManifest = {
     name,
     url: input.homepage,
@@ -61,6 +61,27 @@ export function buildAppManifest(input: AppManifestInput): GitHubAppManifest {
   }
   if (app.setup_path) out.setup_url = `${base}${app.setup_path}`;
   return out;
+}
+
+/** Where the address GitHub uses comes from: the instance setting, the member's status, or the base URL. */
+export type PublicUrlSource = 'instance' | 'member' | 'base';
+
+export interface ResolvedPublicUrl {
+  url: string;
+  source: PublicUrlSource;
+}
+
+/**
+ * The address GitHub and browsers use for an instance: its `publicUrl` set in Octoforge, else the
+ * `public_url` the member reports in its status, else the base URL.
+ */
+export function resolvePublicUrl(
+  instance: { baseUrl: string; publicUrl: string | null },
+  reported?: string | null,
+): ResolvedPublicUrl {
+  if (instance.publicUrl) return { url: trimSlash(instance.publicUrl), source: 'instance' };
+  if (reported) return { url: trimSlash(reported), source: 'member' };
+  return { url: trimSlash(instance.baseUrl), source: 'base' };
 }
 
 /** Where the manifest form posts: the personal account, or an organisation's settings. */

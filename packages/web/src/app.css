@@ -418,13 +418,19 @@ body {
 }
 .instance-form {
   display: grid;
-  grid-template-columns: 180px minmax(220px, 2fr) minmax(140px, 1fr) auto;
+  grid-template-columns: 160px minmax(200px, 2fr) minmax(200px, 2fr) minmax(120px, 1fr) auto;
   gap: 12px;
-  align-items: end;
+  align-items: start;
+}
+.instance-form > button {
+  margin-top: 28px;
 }
 @media (max-width: 760px) {
   .instance-form {
     grid-template-columns: 1fr;
+  }
+  .instance-form > button {
+    margin-top: 0;
   }
   .app-nav {
     margin-left: 0;

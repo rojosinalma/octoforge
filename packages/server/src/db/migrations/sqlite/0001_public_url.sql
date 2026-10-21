@@ -1,0 +1,1 @@
+ALTER TABLE `instances` ADD `public_url` text;

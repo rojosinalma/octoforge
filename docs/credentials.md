@@ -8,7 +8,8 @@ you picked took it.
 Before you start:
 
 1. Set `OCTOFORGE_TOKEN` in Octoforge and the same value in each tool's `.env`, and restart them.
-2. Add the tool's instances on the Settings page.
+2. Add the tool's instances on the Settings page. If GitHub cannot reach an instance at its base
+   URL, give it a public URL ([configuration](configuration.md#instances)).
 3. For a GitHub App, set `PUBLIC_URL` to the address your browser uses for Octoforge.
 
 Open **Members → Credentials** on the tool's card. The page lists every instance with the
@@ -18,6 +19,8 @@ credential it uses now (`from .env`, `from Octoforge` or none). It never shows a
 
 1. Under **Create a GitHub App**, check the name (it must be unique across GitHub), pick the owner
    (your account or the organisation from Settings) and the instance that receives the webhooks.
+   Under **Webhooks go to**, the page shows the webhook URL and where its address comes from: the
+   instance setting, the member's own report, or the base URL.
 2. Press **Create on GitHub**. Your browser posts the App manifest to GitHub: the permissions and
    events the tool asks for, the webhook URL on that instance, and Octoforge's callback.
 3. Confirm on GitHub. GitHub sends you back to Octoforge with a one-time code; Octoforge exchanges it

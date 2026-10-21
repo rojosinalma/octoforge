@@ -3,7 +3,14 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import type { AppDeps } from '../app';
 import { ActionError } from '../lib/credentials';
-import { addInstance, listInstances, NewInstance, removeInstance } from '../lib/instances';
+import {
+  addInstance,
+  InstancePatch,
+  listInstances,
+  NewInstance,
+  removeInstance,
+  updateInstance,
+} from '../lib/instances';
 import { listLog } from '../lib/journal';
 import { getSettings, patchSettings } from '../lib/settings';
 import { VERSION } from '../version';
@@ -146,6 +153,15 @@ export function apiRoutes(deps: AppDeps) {
     }
     const instance = await addInstance(db, input);
     return jsonOk(c, `added ${instance.baseUrl}`, { instance });
+  });
+
+  app.patch('/instances/:id', async (c) => {
+    const patch = await body(c, InstancePatch);
+    const instance = await updateInstance(db, Id.parse(c.req.param('id')), patch);
+    if (!instance) throw new ActionError('not_found', 'no such instance');
+    return jsonOk(c, instance.publicUrl ? `public URL set to ${instance.publicUrl}` : 'public URL cleared', {
+      instance,
+    });
   });
 
   app.delete('/instances/:id', async (c) => {

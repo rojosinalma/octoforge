@@ -77,7 +77,7 @@ The same token value is set in Octoforge's `.env` and in each member's `.env`.
 | Route | Does |
 |---|---|
 | `GET /manifest` | The `octoforge.json` document itself, not wrapped in `{ok, message}`. No bearer needed. |
-| `GET /status` | `{contract, version, github: {mode, source, app_id?, login?}, database: {engine, schema?, source}}`. `source` is `env`, `octoforge` or `none`. Never returns a secret. |
+| `GET /status` | `{contract, version, github: {mode, source, app_id?, login?}, database: {engine, schema?, source}, public_url?}`. `source` is `env`, `octoforge` or `none`. `public_url` is optional: the address where GitHub and browsers reach the member (`https://tool.example.com`), when it differs from the URL Octoforge calls. Octoforge uses it for the App's webhook and setup URLs unless the instance has its own public URL in Octoforge. Never returns a secret. |
 | `PUT /github` | Body `{mode: "pat", token}` or `{mode: "app", app_id, private_key, webhook_secret, installation_id?}`. The member checks the credential against GitHub (`GET /user` for a token, `GET /app` with a JWT for an App), stores it in its own settings and uses it from then on. A delivered value wins over the env value. Answer: `{ok, message, login? / app_slug?, restart_required}`; 400 when GitHub refuses the credential, 502 when GitHub cannot be reached. |
 | `DELETE /github` | Drops the delivered credential; the member goes back to its env value. |
 | `POST /database/adopt` | Body `{url, schema, copy}`. Moves the member to the database at `url` (section 3). |

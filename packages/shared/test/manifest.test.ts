@@ -74,4 +74,14 @@ describe('parseManifest', () => {
     expect(s.github?.source).toBe('octoforge');
     expect(MemberStatus.parse({ contract: 1 }).github).toBeNull();
   });
+
+  test('public_url is optional; a malformed one is dropped, not the whole status', () => {
+    expect(MemberStatus.parse({ contract: 1 }).public_url).toBeUndefined();
+    expect(MemberStatus.parse({ contract: 1, public_url: 'https://alice.example.com' }).public_url).toBe(
+      'https://alice.example.com',
+    );
+    const bad = MemberStatus.parse({ contract: 1, version: '1.0.0', public_url: 'not a url' });
+    expect(bad.public_url).toBeNull();
+    expect(bad.version).toBe('1.0.0');
+  });
 });

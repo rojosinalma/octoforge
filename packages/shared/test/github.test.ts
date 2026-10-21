@@ -8,6 +8,7 @@ import {
   fineGrainedTokenUrl,
   missingScopes,
   parseScopes,
+  resolvePublicUrl,
   tokenType,
 } from '../src';
 
@@ -30,7 +31,7 @@ describe('buildAppManifest', () => {
     manifest,
     name: 'Alice tool',
     homepage: 'https://github.com/alice/alice-tool',
-    instanceUrl: 'https://tool.example.com/',
+    publicUrl: 'https://tool.example.com/',
     callbackUrl: 'https://forge.example.com/github/callback',
   };
 
@@ -72,6 +73,12 @@ describe('buildAppManifest', () => {
     expect(() => buildAppManifest({ ...input, manifest: { ...manifest, github: {} } })).toThrow(
       'does not support',
     );
+  });
+
+  test('webhook and setup page use the public URL, not the base URL', () => {
+    const m = buildAppManifest({ ...input, publicUrl: 'https://alice-tool.example.com' });
+    expect(m.hook_attributes?.url).toBe('https://alice-tool.example.com/webhooks/github');
+    expect(m.setup_url).toBe('https://alice-tool.example.com/');
   });
 
   test('form targets for a personal account and an organisation', () => {
@@ -167,5 +174,27 @@ describe('buildEnvBlock', () => {
         '',
       ].join('\n'),
     );
+  });
+});
+
+describe('resolvePublicUrl', () => {
+  const inst = { baseUrl: 'http://alice-tool:8080', publicUrl: null };
+
+  test('the instance setting wins over the member report and the base URL', () => {
+    expect(
+      resolvePublicUrl({ ...inst, publicUrl: 'https://alice.example.com/' }, 'https://other.example.com'),
+    ).toEqual({ url: 'https://alice.example.com', source: 'instance' });
+  });
+
+  test('without a setting, the URL the member reports', () => {
+    expect(resolvePublicUrl(inst, 'https://reported.example.com/')).toEqual({
+      url: 'https://reported.example.com',
+      source: 'member',
+    });
+  });
+
+  test('without either, the base URL', () => {
+    expect(resolvePublicUrl(inst)).toEqual({ url: 'http://alice-tool:8080', source: 'base' });
+    expect(resolvePublicUrl(inst, null)).toEqual({ url: 'http://alice-tool:8080', source: 'base' });
   });
 });

@@ -1,7 +1,7 @@
 import type { Instance, Settings as SettingsT, Theme } from '@octoforge/shared';
 import { Settings as SettingsSchema } from '@octoforge/shared';
-import { PlusIcon, TrashIcon } from '@primer/octicons-react';
-import { Button, FormControl, IconButton, Link, Select, TextInput, useConfirm } from '@primer/react';
+import { PencilIcon, PlusIcon, TrashIcon } from '@primer/octicons-react';
+import { Button, Dialog, FormControl, IconButton, Link, Select, TextInput, useConfirm } from '@primer/react';
 import { Tooltip } from '@primer/react/next';
 import { type FormEvent, useEffect, useState } from 'react';
 import { api } from '../api';
@@ -99,6 +99,49 @@ function TextSetting({
   );
 }
 
+const PUBLIC_URL_HELP = 'Where GitHub and browsers reach this instance, if different from the URL above.';
+
+/** Sets or clears the public URL of an existing instance. */
+function PublicUrlDialog({
+  inst,
+  onSave,
+  onClose,
+}: {
+  inst: Instance;
+  onSave: (publicUrl: string | null) => void;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState(inst.publicUrl ?? '');
+  const save = () => onSave(value.trim() || null);
+  return (
+    <Dialog
+      title="Public URL"
+      subtitle={inst.label || inst.baseUrl}
+      onClose={onClose}
+      footerButtons={[
+        { content: 'Cancel', onClick: onClose },
+        { content: 'Save', buttonType: 'primary', onClick: save },
+      ]}
+    >
+      <FormControl>
+        <FormControl.Label>Public URL</FormControl.Label>
+        <TextInput
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && save()}
+          placeholder={inst.baseUrl}
+          type="url"
+          block
+        />
+        <FormControl.Caption>
+          Where GitHub and browsers reach this instance, if different from {inst.baseUrl}. Empty = the address
+          the member reports, else the base URL.
+        </FormControl.Caption>
+      </FormControl>
+    </Dialog>
+  );
+}
+
 function Instances() {
   const { toast } = useToast();
   const confirm = useConfirm();
@@ -107,8 +150,10 @@ function Instances() {
   const names = members.data?.map((m) => m.name) ?? [];
   const [member, setMember] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
+  const [publicUrl, setPublicUrl] = useState('');
   const [label, setLabel] = useState('');
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState<Instance | null>(null);
   const chosen = member || names[0] || '';
 
   const add = async (e: FormEvent) => {
@@ -116,15 +161,32 @@ function Instances() {
     if (!chosen || !baseUrl.trim()) return;
     setBusy(true);
     try {
-      const r = await api.addInstance(chosen, baseUrl.trim(), label.trim());
+      const r = await api.addInstance(chosen, baseUrl.trim(), label.trim(), publicUrl.trim() || null);
       instances.setData((all) => [...(all ?? []), r.instance]);
       setBaseUrl('');
+      setPublicUrl('');
       setLabel('');
       toast(r.message);
     } catch (err) {
       toast('Instance not added', { description: (err as Error).message, variant: 'critical' });
     } finally {
       setBusy(false);
+    }
+  };
+
+  const savePublicUrl = async (inst: Instance, next: string | null) => {
+    setEditing(null);
+    if (next === inst.publicUrl) return;
+    const before = instances.data;
+    const shown = next?.replace(/\/+$/, '') ?? null;
+    instances.setData((all) => (all ?? []).map((i) => (i.id === inst.id ? { ...i, publicUrl: shown } : i)));
+    try {
+      const r = await api.setPublicUrl(inst.id, next);
+      instances.setData((all) => (all ?? []).map((i) => (i.id === inst.id ? r.instance : i)));
+      toast(r.message);
+    } catch (err) {
+      instances.setData(before);
+      toast('Public URL not saved', { description: (err as Error).message, variant: 'critical' });
     }
   };
 
@@ -151,7 +213,8 @@ function Instances() {
     <Section title="Instances">
       <p className="fg-muted section-lead">
         Base URLs of running members. Octoforge reads their manifest and health, and delivers credentials and
-        database settings to them.
+        database settings to them. A public URL is where GitHub sends webhooks, when the base URL is only
+        reachable on your network.
       </p>
       {list.length > 0 ? (
         <table className="table">
@@ -159,6 +222,7 @@ function Instances() {
             <tr>
               <th>Member</th>
               <th>Base URL</th>
+              <th>Public URL</th>
               <th>Label</th>
               <th aria-label="Actions" />
             </tr>
@@ -172,8 +236,26 @@ function Instances() {
                     {i.baseUrl}
                   </Link>
                 </td>
+                <td>
+                  {i.publicUrl ? (
+                    <Link href={i.publicUrl} target="_blank" rel="noreferrer">
+                      {i.publicUrl}
+                    </Link>
+                  ) : (
+                    <span className="fg-muted">not set</span>
+                  )}
+                </td>
                 <td>{i.label || <span className="fg-muted">none</span>}</td>
                 <td className="cell-actions">
+                  <Tooltip text="Edit public URL" direction="w">
+                    <IconButton
+                      icon={PencilIcon}
+                      aria-label={`Edit public URL of ${i.baseUrl}`}
+                      variant="invisible"
+                      size="small"
+                      onClick={() => setEditing(i)}
+                    />
+                  </Tooltip>
                   <Tooltip text="Remove" direction="w">
                     <IconButton
                       icon={TrashIcon}
@@ -211,6 +293,18 @@ function Instances() {
             type="url"
             block
           />
+          <FormControl.Caption>Where Octoforge calls the member API.</FormControl.Caption>
+        </FormControl>
+        <FormControl>
+          <FormControl.Label>Public URL</FormControl.Label>
+          <TextInput
+            value={publicUrl}
+            onChange={(e) => setPublicUrl(e.target.value)}
+            placeholder="optional"
+            type="url"
+            block
+          />
+          <FormControl.Caption>{PUBLIC_URL_HELP}</FormControl.Caption>
         </FormControl>
         <FormControl>
           <FormControl.Label>Label</FormControl.Label>
@@ -220,6 +314,13 @@ function Instances() {
           {busy ? 'Adding…' : 'Add'}
         </Button>
       </form>
+      {editing && (
+        <PublicUrlDialog
+          inst={editing}
+          onSave={(next) => void savePublicUrl(editing, next)}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </Section>
   );
 }

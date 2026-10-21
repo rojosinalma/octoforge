@@ -23,7 +23,10 @@ export interface Health {
 export interface Instance {
   id: number;
   member: string;
+  /** Where Octoforge calls the member API. */
   baseUrl: string;
+  /** Where GitHub and browsers reach the instance, when it differs from `baseUrl`; null = not set. */
+  publicUrl: string | null;
   label: string;
   createdAt: string;
 }

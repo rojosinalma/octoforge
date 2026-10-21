@@ -63,3 +63,14 @@ needs to hand the schema over.
 The Settings page also holds the **instances**: the base URL (and an optional label) of every
 running member. Pick the member from the list, paste the URL, press Add. Octoforge reads the
 manifest and health from there, and delivers credentials and database settings to it.
+
+The base URL only has to work from Octoforge, so it can be a name on your own network
+(`http://tool:8080`). GitHub cannot reach such a name. When an instance has a different public
+address, put it in **Public URL** (`https://tool.example.com`), or edit it later with the pencil in the
+instance list. A GitHub App created for that instance sends its webhooks and setup page there.
+
+The address GitHub uses is picked in this order:
+
+1. The instance's public URL in Octoforge.
+2. The `public_url` the member reports in `GET /api/octoforge/status`, if it reports one.
+3. The base URL.

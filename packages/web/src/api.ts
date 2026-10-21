@@ -89,8 +89,10 @@ export const api = {
     request<{ member: MemberCard }>(`${API.member(m)}${fresh ? '?fresh=1' : ''}`).then((r) => r.member),
   status: (m: string) => request<{ statuses: InstanceStatus[] }>(API.status(m)).then((r) => r.statuses),
   instances: () => request<{ instances: Instance[] }>(API.instances).then((r) => r.instances),
-  addInstance: (member: string, baseUrl: string, label: string) =>
-    send<{ instance: Instance } & Message>('POST', API.instances, { member, baseUrl, label }),
+  addInstance: (member: string, baseUrl: string, label: string, publicUrl: string | null) =>
+    send<{ instance: Instance } & Message>('POST', API.instances, { member, baseUrl, publicUrl, label }),
+  setPublicUrl: (id: number, publicUrl: string | null) =>
+    send<{ instance: Instance } & Message>('PATCH', API.instance(id), { publicUrl }),
   removeInstance: (id: number) => send<Message>('DELETE', API.instance(id)),
   startApp: (m: string, input: { instanceId: number; name: string; org: string | null }) =>
     send<{ action: string; manifest: GitHubAppManifest; state: string }>('POST', API.appStart(m), input),

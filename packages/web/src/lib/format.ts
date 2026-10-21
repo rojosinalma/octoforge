@@ -27,3 +27,10 @@ export function sourceLabel(source: string | undefined | null): string {
   if (source === 'env') return 'from .env';
   return 'not set';
 }
+
+/** Where the address GitHub uses came from (see resolvePublicUrl). */
+export function publicUrlSourceLabel(source: 'instance' | 'member' | 'base'): string {
+  if (source === 'instance') return 'instance setting';
+  if (source === 'member') return 'reported by the member';
+  return 'base URL';
+}

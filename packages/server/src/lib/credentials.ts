@@ -12,6 +12,8 @@ import {
   type Manifest,
   missingScopes,
   type PendingCredential,
+  type ResolvedPublicUrl,
+  resolvePublicUrl,
 } from '@octoforge/shared';
 import type { Db } from '../db';
 import type { AppCredentials, GitHubClient, GitHubResult } from './github';
@@ -95,6 +97,7 @@ export class Credentials {
     if (!inst || inst.member !== member)
       throw new ActionError('validation', 'pick an instance of this member');
     const callbackUrl = this.callbackUrl();
+    const target = await this.publicUrlOf(inst);
     let app: GitHubAppManifest;
     let action: string;
     const state = randomBytes(24).toString('hex');
@@ -102,8 +105,8 @@ export class Credentials {
       app = buildAppManifest({
         manifest,
         name: input.name,
-        homepage: sub.homepage ?? (sub.repo ? `https://github.com/${sub.repo}` : inst.baseUrl),
-        instanceUrl: inst.baseUrl,
+        homepage: sub.homepage ?? (sub.repo ? `https://github.com/${sub.repo}` : target.url),
+        publicUrl: target.url,
         callbackUrl,
       });
       action = appCreateUrl(state, input.org);
@@ -121,6 +124,16 @@ export class Credentials {
       max,
     });
     return { action, manifest: app, state };
+  }
+
+  /**
+   * The address GitHub uses for an instance. The member's status is asked only when Octoforge has no
+   * public URL of its own for it; an unreachable member falls back to the base URL.
+   */
+  async publicUrlOf(inst: Instance): Promise<ResolvedPublicUrl> {
+    if (inst.publicUrl) return resolvePublicUrl(inst);
+    const r = await (await this.deps.members.client(inst.baseUrl)).status();
+    return resolvePublicUrl(inst, r.ok ? r.data.public_url : null);
   }
 
   /** Step 2 (GitHub redirect): checks `state`, exchanges the code, keeps the credentials in memory. */

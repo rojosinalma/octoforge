@@ -7,6 +7,7 @@ import {
   type Manifest,
   type MemberCard,
   type PendingCredential,
+  resolvePublicUrl,
 } from '@octoforge/shared';
 import {
   AlertIcon,
@@ -38,7 +39,7 @@ import { Page, Section, StatusDot } from '../components/Page';
 import { useApp } from '../hooks/useApp';
 import { useAsync, useInterval } from '../hooks/useAsync';
 import { useToast } from '../hooks/useToast';
-import { hostOf, relativeTime, sourceLabel } from '../lib/format';
+import { hostOf, publicUrlSourceLabel, relativeTime, sourceLabel } from '../lib/format';
 import { linkClick, navigate, useRoute } from '../router';
 
 const err = (e: unknown) => (e as Error).message;
@@ -175,10 +176,13 @@ function CreateApp({
   card,
   manifest,
   instances,
+  statuses,
 }: {
   card: MemberCard;
   manifest: Manifest;
   instances: Instance[];
+  /** Status answers of the instances: a member may report its own public URL there. */
+  statuses: InstanceStatus[] | null;
 }) {
   const { capabilities } = useApp();
   const { toast } = useToast();
@@ -204,6 +208,10 @@ function CreateApp({
       toast('Cannot start', { description: err(e2), variant: 'critical' });
     }
   };
+  const target = instances.find((i) => i.id === instanceId);
+  const resolved = target
+    ? resolvePublicUrl(target, statuses?.find((s) => s.instance.id === target.id)?.status?.public_url)
+    : null;
   const perms = Object.entries(app.permissions);
   const blocked = !capabilities?.publicUrl
     ? 'PUBLIC_URL is not set: GitHub needs it to send you back here.'
@@ -246,10 +254,13 @@ function CreateApp({
               </Select.Option>
             ))}
           </Select>
-          {app.webhook_path && instanceId && (
+          {app.webhook_path && resolved && (
             <FormControl.Caption>
-              {instances.find((i) => i.id === instanceId)?.baseUrl}
-              {app.webhook_path}
+              <span className="mono">
+                {resolved.url}
+                {app.webhook_path}
+              </span>{' '}
+              ({publicUrlSourceLabel(resolved.source)})
             </FormControl.Caption>
           )}
         </FormControl>
@@ -740,7 +751,7 @@ export function CredentialsPage({ member }: { member: string }) {
       )}
       {c && m?.github?.auth.includes('app') && (
         <Section title="Create a GitHub App">
-          <CreateApp card={c} manifest={m} instances={instances} />
+          <CreateApp card={c} manifest={m} instances={instances} statuses={statuses.data} />
         </Section>
       )}
       {c && m?.github?.auth.includes('pat') && (
