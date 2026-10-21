@@ -6,6 +6,8 @@ All notable changes to Octoforge are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-10-22
+
 ### Changed
 
 - The member list comes from `members.json` at the repository root (name, repository, optional
@@ -138,7 +140,8 @@ All notable changes to Octoforge are documented here. The format follows
 - `GET /health`, a container image with a health check, `compose.yaml`, and image publishing on tags.
 - `bin/verify` runs typecheck, lint, tests, build and a container smoke test after the index checks.
 
-[Unreleased]: https://github.com/rojosinalma/octoforge/compare/v0.1.7...HEAD
+[Unreleased]: https://github.com/rojosinalma/octoforge/compare/v0.1.8...HEAD
+[0.1.8]: https://github.com/rojosinalma/octoforge/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/rojosinalma/octoforge/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/rojosinalma/octoforge/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/rojosinalma/octoforge/compare/v0.1.4...v0.1.5
