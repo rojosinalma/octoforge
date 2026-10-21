@@ -3,18 +3,21 @@
 ## Purpose
 
 Octoforge is the home of a family of self-hosted GitHub tools. It gives them one place to be found,
-one clone that holds a known-good set of versions, and a small app for the jobs that span tools:
+one list of every tool, and a small app for the jobs that span tools:
 an index with live status, creating and handing over GitHub credentials, and hosting the tools'
 databases next to each other.
 
 ## Architecture
 
-- A git repository. Each tool (a **member**) is a **git submodule** at the top level (`<tool>/`),
-  pointing at the tool's own repository. The tool keeps its history, CI, releases, container image
-  and URL, and its `compose.yaml` at its own root, so it runs the same from `octoforge/<tool>` as
-  from a standalone clone.
-- `.gitmodules` is the machine-readable index (`path`, `url`, `homepage` per member); `README.md` is
-  the human index. `bin/verify` keeps both and the checkout consistent and scans tracked files for leaks.
+- A git repository. Each tool (a **member**) has its own repository, history, CI, releases,
+  container image and URL. A local clone of a tool may sit at the top level (`<tool>/`); that folder
+  is git-ignored here, and the tool keeps its `compose.yaml` at its own root, so it runs the same
+  from `octoforge/<tool>` as from a clone anywhere else. Octoforge never pins a tool's version.
+- `members.json` is the machine-readable index (`name`, `repo` as `owner/name`, optional `homepage`
+  per member), validated by a zod schema in `packages/shared`; `README.md` is the human index.
+  `bin/verify` keeps both consistent and scans tracked files for leaks. The server reads
+  `members.json` at start-up (an invalid or missing file stops it with the reason) and again when
+  its mtime changes; an invalid edit later keeps the last good list and logs a warning.
 - The app is one container (`ghcr.io/rojosinalma/octoforge`), a Bun workspace:
   - `packages/shared`: zod schemas of the member contract (`octoforge.json`, status answers), the
     settings schema, API types, and pure builders (GitHub App manifest, token form URLs, `.env` block).
@@ -52,13 +55,12 @@ API never returns them except in the one-time `.env` block.
 
 ## Flows
 
-- **Clone**: `git clone --recurse-submodules` checks out every tool at its pinned commit.
-- **Bump**: Dependabot (`gitsubmodule`, weekly) opens one pull request per moved tool; `run-checks`
-  runs `bin/verify` on it.
-- **Index**: for each `.gitmodules` entry, the manifest comes from the first configured instance
+- **Clone**: `git clone` gets the app and `members.json`; each tool is cloned on its own, next to
+  it or anywhere else, and updated in its own folder.
+- **Index**: for each `members.json` entry, the manifest comes from the first configured instance
   (`GET /api/octoforge/manifest`), else from `raw.githubusercontent.com/<owner>/<repo>/HEAD/octoforge.json`,
   cached for `manifestCacheMin`. Each instance is probed on the manifest's `health` path. A member
-  without a manifest still gets a card from its submodule name and homepage.
+  without a manifest still gets a card from its name and homepage.
 - **GitHub App**: Octoforge builds the App manifest from the member's `github.app` plus the name,
   homepage, hook URL (the instance's public address + `webhook_path`), `setup_url` and `redirect_url`
   (`PUBLIC_URL/github/callback`), keeps a random `state` in memory and lets the browser post the
@@ -107,7 +109,7 @@ API never returns them except in the one-time `.env` block.
 Bootstrap values and secrets come from the environment ([configuration.md](configuration.md)):
 `AUTH_PASSWORD` or `AUTH=none` (one is required), `OCTOFORGE_TOKEN`, `PUBLIC_URL`, `SESSION_SECRET`,
 `DATABASE_URL`, `FORGE_PG_ADMIN_URL`, `OCTOFORGE_SHARED_DATA`, `LOG_LEVEL`, `PORT`, `DATA_DIR`,
-`WEB_DIST`, `GITMODULES_FILE`. Everything tunable is a row in `settings`, edited on the Settings page.
+`WEB_DIST`, `MEMBERS_FILE`. Everything tunable is a row in `settings`, edited on the Settings page.
 `bin/verify` reads optional extra leak patterns from `.git/info/leak-patterns` (path overridable
 with `OCTOFORGE_LEAK_PATTERNS`).
 
@@ -130,12 +132,13 @@ with `OCTOFORGE_LEAK_PATTERNS`).
 
 | Entry | Option | Reason | Date |
 |---|---|---|---|
-| Repository layout | Umbrella repo with git submodules | Tools stay independent (own repo, CI, releases, URL); the umbrella pins a working set | 2026-10-21 |
-| Index source | `.gitmodules` `homepage` key + README table, checked by `bin/verify` | No extra manifest format; git already parses `.gitmodules` | 2026-10-21 |
+| Repository layout | Umbrella repo with git submodules (superseded 2026-10-22) | Tools stay independent (own repo, CI, releases, URL); the umbrella pins a working set | 2026-10-21 |
+| Index source | `.gitmodules` `homepage` key + README table, checked by `bin/verify` (superseded 2026-10-22) | No extra manifest format; git already parses `.gitmodules` | 2026-10-21 |
 | Language | Bash for `bin/verify` | Only git and text checks; no runtime to install | 2026-10-21 |
 | Runtime | No container | Nothing to serve yet; a root `compose.yaml` arrives with the first shared feature | 2026-10-21 |
 | Versioning | None for the umbrella | The tools version themselves; the umbrella's state is the set of pointers on `main` | 2026-10-21 |
 | Dependency updates | Dependabot `gitsubmodule` + `github-actions`, weekly | Keeps pointers and actions current through reviewed pull requests | 2026-10-21 |
+| Dependency updates | Dependabot `github-actions` only, weekly (supersedes the row above) | No pinned tool versions are left to bump | 2026-10-22 |
 | Licence | AGPL-3.0 | Same as the tools | 2026-10-21 |
 | Runtime | One container: Bun + Hono server serving a React + Primer SPA (supersedes "No container") | The index, credentials and database features need a server and a UI; Primer matches the members' UI | 2026-10-21 |
 | Language | TypeScript for the app; bash stays for the index checks in `bin/verify` (supersedes "Bash for `bin/verify`" as the only language) | Same stack as the members; shared zod schemas between server and UI | 2026-10-21 |
@@ -148,6 +151,7 @@ with `OCTOFORGE_LEAK_PATTERNS`).
 | Sibling list pushed by Octoforge (2026-10-21) | Octoforge pushes the family list to every instance (`PUT /api/octoforge/siblings`) on changes, at start-up and every `siblingsResendMin`; outcomes kept in memory only, a 404 stops the pushes to that instance until an instance changes | Members never need to know where Octoforge or the other tools run; a restarted member gets the list back by the next push; no new table and no polling from the members | 2026-10-21 |
 | UI on tailor-react (2026-10-21) | React + tailor-react (`Ui.*` components) over the tailor CSS, every tailor skin and palette, skin `primer` and palette `gruvbox` by default, mode `auto`; the choice is stored as the settings `skin`, `palette` and `mode` (supersedes Primer React and the `theme` setting) | One look across the house tools, and every skin and palette with a sun/moon toggle in the footer instead of the eight Primer themes; the `primer` skin keeps the GitHub look. The kit is vendored as source, so a fresh clone and the image build need nothing outside the repo | 2026-10-21 |
 | Auth | Fail-closed password login (`AUTH_PASSWORD`), `AUTH=none` only on purpose | The app creates credentials; it must never start open by accident | 2026-10-21 |
+| Members | Listed in `members.json` (name, repo, homepage), tools are git-ignored folders, no submodules (supersedes the submodule model and `.gitmodules` as the index) | Each tool is cloned and updated on its own; pointer bumps added work without value, and a fresh clone of Octoforge builds and verifies without any tool | 2026-10-22 |
 
 ## Current scope
 

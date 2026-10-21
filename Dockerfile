@@ -55,7 +55,7 @@ ENV NODE_ENV=production \
     PORT=3000 \
     DATA_DIR=/data \
     WEB_DIST=/app/packages/web/dist \
-    GITMODULES_FILE=/app/.gitmodules
+    MEMBERS_FILE=/app/members.json
 
 # Bun installs in isolated mode: the store lives in node_modules/.bun and every workspace package
 # gets its own node_modules of symlinks into it, so each tree is copied.
@@ -63,8 +63,8 @@ COPY --from=prod-deps --chown=octoforge:octoforge /app/node_modules ./node_modul
 COPY --from=prod-deps --chown=octoforge:octoforge /app/packages/shared/node_modules packages/shared/node_modules
 COPY --from=prod-deps --chown=octoforge:octoforge /app/packages/server/node_modules packages/server/node_modules
 COPY --chown=octoforge:octoforge package.json ./
-# The member list: one card per submodule.
-COPY --chown=octoforge:octoforge .gitmodules ./
+# The member list: one card per entry.
+COPY --chown=octoforge:octoforge members.json ./
 COPY --chown=octoforge:octoforge packages/shared/package.json packages/shared/
 COPY --chown=octoforge:octoforge packages/shared/src packages/shared/src
 COPY --chown=octoforge:octoforge packages/server/package.json packages/server/

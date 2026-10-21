@@ -199,7 +199,7 @@ export function IndexPage() {
       </div>
       {cards && cards.length === 0 && (
         <Ui.EmptyState icon="bi-box-seam" title="No members">
-          <p>.gitmodules lists no submodule.</p>
+          <p>members.json lists no tool.</p>
         </Ui.EmptyState>
       )}
     </Page>

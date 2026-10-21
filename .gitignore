@@ -15,3 +15,8 @@ compose.override.yaml
 .idea/
 .vscode/
 .DS_Store
+
+# Member tools: each is its own repository, cloned next to this one (docs/members.md).
+/octotally/
+/octohatchery/
+/octowarden/

@@ -78,9 +78,9 @@ export function apiRoutes(deps: AppDeps) {
   const { db, members, credentials, database, env } = deps;
 
   const member = (name: string) => {
-    const sub = members.find(name);
-    if (!sub) throw new ActionError('not_found', `${name} is not a member`);
-    return sub;
+    const entry = members.find(name);
+    if (!entry) throw new ActionError('not_found', `${name} is not a member`);
+    return entry;
   };
 
   app.get('/capabilities', (c) =>
@@ -115,9 +115,9 @@ export function apiRoutes(deps: AppDeps) {
   });
 
   app.get('/members/:m/status', async (c) => {
-    const sub = member(c.req.param('m'));
+    const entry = member(c.req.param('m'));
     const statuses: InstanceStatus[] = await Promise.all(
-      (await listInstances(db, sub.name)).map(async (instance) => {
+      (await listInstances(db, entry.name)).map(async (instance) => {
         const r = await (await members.client(instance.baseUrl)).status();
         return r.ok
           ? { instance, ok: true, status: r.data, error: null }
@@ -147,8 +147,8 @@ export function apiRoutes(deps: AppDeps) {
   });
 
   app.delete('/members/:m/instances/:id/github', async (c) => {
-    const sub = member(c.req.param('m'));
-    const inst = (await listInstances(db, sub.name)).find((i) => i.id === Id.parse(c.req.param('id')));
+    const entry = member(c.req.param('m'));
+    const inst = (await listInstances(db, entry.name)).find((i) => i.id === Id.parse(c.req.param('id')));
     if (!inst) throw new ActionError('not_found', 'no such instance of this member');
     const r = await (await members.client(inst.baseUrl)).deleteGithub();
     if (!r.ok) return jsonErr(c, 'upstream', r.message);

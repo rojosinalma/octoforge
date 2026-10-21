@@ -220,27 +220,29 @@ export class SharedApp {
     const others: SharedAppView['others'] = [];
     const specs: Parameters<typeof unionAppSpecs>[0] = [];
     const lookups = await Promise.all(
-      this.deps.members.list().map(async (sub) => ({ sub, ...(await this.deps.members.manifest(sub)) })),
+      this.deps.members
+        .list()
+        .map(async (entry) => ({ entry, ...(await this.deps.members.manifest(entry)) })),
     );
-    for (const { sub, manifest, error } of lookups) {
-      const title = manifest?.title ?? sub.name;
+    for (const { entry, manifest, error } of lookups) {
+      const title = manifest?.title ?? entry.name;
       if (!manifest) {
-        others.push({ name: sub.name, title, reason: error ? `no manifest: ${error}` : 'no manifest' });
+        others.push({ name: entry.name, title, reason: error ? `no manifest: ${error}` : 'no manifest' });
         continue;
       }
       const g = manifest.github;
       if (!g) {
-        others.push({ name: sub.name, title, reason: 'needs no GitHub credentials' });
+        others.push({ name: entry.name, title, reason: 'needs no GitHub credentials' });
         continue;
       }
       if (!g.auth.includes('app') || !g.app) {
         const why = g.pat?.user_identity ? 'token only: it acts as a person' : 'token only';
-        others.push({ name: sub.name, title, reason: why });
+        others.push({ name: entry.name, title, reason: why });
         continue;
       }
-      specs.push({ name: sub.name, app: g.app });
+      specs.push({ name: entry.name, app: g.app });
       members.push({
-        name: sub.name,
+        name: entry.name,
         title,
         auth: g.auth,
         needs: g.app.permissions,

@@ -6,6 +6,19 @@ All notable changes to Octoforge are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The member list comes from `members.json` at the repository root (name, repository, optional
+  homepage). The server checks it at start-up, refuses to start when it is missing or invalid, and
+  reads it again when it changes. `MEMBERS_FILE` points at another copy.
+- The tools are no longer part of this repository. Clone the ones you want into the `octoforge`
+  folder; git ignores them. `bin/verify` passes on a fresh clone without any tool.
+
+### Removed
+
+- Git submodules and `.gitmodules`, with the `GITMODULES_FILE` variable and the Dependabot
+  submodule updates.
+
 ## [0.1.7] - 2026-10-22
 
 ### Changed

@@ -1,7 +1,7 @@
 # Contributing
 
 Changes to a tool belong in that tool's repository; open issues and pull requests there. This
-repository takes changes to the index, the submodule set, the shared documentation, the checks and
+repository takes changes to the index, the member list, the shared documentation, the checks and
 the Octoforge app (`packages/`).
 
 ## Running locally
@@ -9,7 +9,7 @@ the Octoforge app (`packages/`).
 Needs bash, git, [Bun](https://bun.sh) ≥ 1.4 and, for the container test, Docker.
 
 ```sh
-git clone --recurse-submodules https://github.com/rojosinalma/octoforge.git
+git clone https://github.com/rojosinalma/octoforge.git
 cd octoforge
 bun install
 cp .env.example .env          # AUTH_PASSWORD at least; Bun loads .env from the working directory
@@ -25,7 +25,7 @@ SKIP_DOCKER=1 bin/verify   # without the container smoke test
 SKIP_APP=1 bin/verify      # index and leak checks only
 ```
 
-`bin/verify` exits non-zero with a reason when the index, `.gitmodules` and the submodules disagree,
+`bin/verify` exits non-zero with a reason when the README index and `members.json` disagree,
 when a tracked file contains a local path or a private address, or when an app step fails. Extra leak
 patterns can be added per clone in `.git/info/leak-patterns` (one extended regex per line); that file
 is never committed.
@@ -79,24 +79,14 @@ UI needs must be in the sprite: add it to the `--icons` list of the apply. Octof
 
 ## Adding a tool
 
-1. Add the submodule and its homepage:
-
-   ```sh
-   git submodule add https://github.com/rojosinalma/<tool>.git <tool>
-   git config -f .gitmodules submodule.<tool>.homepage https://github.com/rojosinalma/<tool>
-   ```
-
+1. Add an entry to `members.json`: `name` (the folder and repository name), `repo`
+   (`rojosinalma/<tool>`) and, if you like, `homepage`.
 2. Add a row to the table in `README.md`, linking the tool's repository.
-3. Run `bin/verify` and commit `.gitmodules`, the submodule and `README.md` together. The image build
-   context is an allow-list, so the new folder stays out of it without a change.
+3. Add `/<tool>/` to `.gitignore`, so a local clone of the tool stays out of this repository.
+4. Run `bin/verify` and commit `members.json`, `README.md` and `.gitignore` together. The image
+   build context is an allow-list, so a cloned tool folder stays out of it without a change.
 
 To plug into the app, the tool implements [docs/members.md](docs/members.md).
-
-## Moving a pinned version
-
-Commit the new submodule pointer on its own, with the tool and the target in the message
-(`octotally: bump to v0.2.0`). Only point at commits that are pushed to the tool's default branch.
-Dependabot does this weekly through a pull request.
 
 ## Commits and pull requests
 

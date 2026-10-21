@@ -163,15 +163,15 @@ export class Siblings {
     const forgeUrl = this.deps.publicUrl?.replace(/\/+$/, '') ?? '';
     const all = instances ?? (await this.deps.instances());
     const entries = await Promise.all(
-      this.deps.members.list().map(async (sub): Promise<SiblingList['members'][number] | null> => {
+      this.deps.members.list().map(async (entry): Promise<SiblingList['members'][number] | null> => {
         // First instance in Octoforge's list = the oldest one.
-        const inst = all.filter((i) => i.member === sub.name).sort((a, b) => a.id - b.id)[0];
+        const inst = all.filter((i) => i.member === entry.name).sort((a, b) => a.id - b.id)[0];
         if (!inst) return null;
-        const [lookup, url] = await Promise.all([this.deps.members.manifest(sub), this.urlOf(inst)]);
+        const [lookup, url] = await Promise.all([this.deps.members.manifest(entry), this.urlOf(inst)]);
         const m = lookup.manifest;
         return {
-          name: sub.name,
-          title: m?.title ?? sub.name,
+          name: entry.name,
+          title: m?.title ?? entry.name,
           url,
           ...(m?.icon ? { icon: `${url}${m.icon}` } : {}),
         };

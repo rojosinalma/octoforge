@@ -7,7 +7,7 @@ import { Database, type DatabaseDeps } from './lib/database';
 import { GitHubClient } from './lib/github';
 import type { FetchLike } from './lib/http';
 import { listInstances } from './lib/instances';
-import { MemberRegistry, readSubmodules } from './lib/members';
+import { MemberRegistry, membersFromFile } from './lib/members';
 import { SecretStore } from './lib/secrets';
 import { getSettings } from './lib/settings';
 import { SharedApp } from './lib/shared-app';
@@ -31,11 +31,13 @@ export async function build(
     siblings?: Pick<SiblingsDeps, 'startDelayMs' | 'concurrency'>;
   } = {},
 ): Promise<Built> {
+  // A bad member list stops the start-up before anything opens.
+  const memberList = membersFromFile(env.membersFile);
   const db = opts.db ?? (await openDb(env.DATABASE_URL));
   const store = new SecretStore();
   const timeoutMs = async () => (await getSettings(db)).requestTimeoutMs;
   const members = new MemberRegistry({
-    submodules: () => readSubmodules(env.gitmodulesFile),
+    members: memberList,
     instances: (m) => listInstances(db, m),
     timeoutMs,
     cacheMs: async () => (await getSettings(db)).manifestCacheMin * 60_000,

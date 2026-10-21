@@ -1,0 +1,19 @@
+{
+  "members": [
+    {
+      "name": "octotally",
+      "repo": "rojosinalma/octotally",
+      "homepage": "https://github.com/rojosinalma/octotally"
+    },
+    {
+      "name": "octohatchery",
+      "repo": "rojosinalma/octohatchery",
+      "homepage": "https://github.com/rojosinalma/octohatchery"
+    },
+    {
+      "name": "octowarden",
+      "repo": "rojosinalma/octowarden",
+      "homepage": "https://github.com/rojosinalma/octowarden"
+    }
+  ]
+}

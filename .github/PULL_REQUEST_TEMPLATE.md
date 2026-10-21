@@ -9,5 +9,4 @@
 ## Checklist
 
 - [ ] `bin/verify` passes locally
-- [ ] Submodule pointers only point at pushed commits on the tool's default branch
-- [ ] README index and `.gitmodules` updated together when a tool is added or removed
+- [ ] README index and `members.json` updated together when a tool is added or removed

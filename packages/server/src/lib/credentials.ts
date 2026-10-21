@@ -20,7 +20,7 @@ import type { AppCredentials, GitHubClient, GitHubResult } from './github';
 import { getInstance, listInstances } from './instances';
 import { logDelivery } from './journal';
 import type { GithubBody } from './member-client';
-import type { MemberRegistry, Submodule } from './members';
+import type { Member, MemberRegistry } from './members';
 import type { SecretEntry, SecretStore } from './secrets';
 import { getSettings } from './settings';
 
@@ -68,13 +68,13 @@ export class Credentials {
     return { ttlMs: s.secretTtlMin * 60_000, max: s.secretStoreMax };
   }
 
-  async requireMember(name: string): Promise<{ sub: Submodule; manifest: Manifest }> {
-    const sub = this.deps.members.find(name);
-    if (!sub) throw new ActionError('not_found', `${name} is not a member`);
-    const { manifest, error } = await this.deps.members.manifest(sub);
+  async requireMember(name: string): Promise<{ entry: Member; manifest: Manifest }> {
+    const entry = this.deps.members.find(name);
+    if (!entry) throw new ActionError('not_found', `${name} is not a member`);
+    const { manifest, error } = await this.deps.members.manifest(entry);
     if (!manifest)
       throw new ActionError('unavailable', `no manifest for ${name}${error ? `: ${error}` : ''}`);
-    return { sub, manifest };
+    return { entry, manifest };
   }
 
   callbackUrl(): string {
@@ -92,7 +92,7 @@ export class Credentials {
     member: string,
     input: { instanceId: number; name: string; org: string | null },
   ): Promise<{ action: string; manifest: GitHubAppManifest; state: string }> {
-    const { sub, manifest } = await this.requireMember(member);
+    const { entry, manifest } = await this.requireMember(member);
     if (!manifest.github?.auth.includes('app'))
       throw new ActionError('validation', `${member} does not use a GitHub App`);
     const inst = await getInstance(this.deps.db, input.instanceId);
@@ -107,7 +107,7 @@ export class Credentials {
       app = buildAppManifest({
         manifest,
         name: input.name,
-        homepage: sub.homepage ?? (sub.repo ? `https://github.com/${sub.repo}` : target.url),
+        homepage: entry.homepage ?? `https://github.com/${entry.repo}`,
         publicUrl: target.url,
         callbackUrl,
       });
@@ -278,8 +278,8 @@ export class Credentials {
     if (!e || (e.kind !== 'app' && e.kind !== 'pat')) {
       throw new ActionError('not_found', 'this credential expired or was delivered already');
     }
-    const sub = this.deps.members.find(e.member);
-    const manifest = sub ? (await this.deps.members.manifest(sub)).manifest : null;
+    const entry = this.deps.members.find(e.member);
+    const manifest = entry ? (await this.deps.members.manifest(entry)).manifest : null;
     if (!manifest)
       throw new ActionError('unavailable', `no manifest for ${e.member}: its variable names are unknown`);
     const values: EnvValues =

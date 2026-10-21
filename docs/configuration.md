@@ -23,10 +23,11 @@ Octoforge reads two kinds of configuration:
 | `PORT` | no | `3000` | Listen port. The image sets it. |
 | `DATA_DIR` | no | `./data` (`/data` in the image) | Database file and session secret. |
 | `WEB_DIST` | no | `packages/web/dist` | Built SPA. The image sets it. |
-| `GITMODULES_FILE` | no | the repository's `.gitmodules` | Member list. The image carries a copy. |
+| `MEMBERS_FILE` | no | the repository's `members.json` (`/app/members.json` in the image) | Member list. Read at start-up and again when the file changes. The image carries a copy. |
 
 Octoforge refuses to start, with the reason on stderr and exit code 78, when neither `AUTH_PASSWORD`
-nor `AUTH=none` is set, when both are set, or when a variable is malformed.
+nor `AUTH=none` is set, when both are set, when a variable is malformed, or when the member list
+is missing or invalid (bad JSON, a duplicate name, a `repo` that is not `owner/name`).
 
 ### Postgres admin role
 

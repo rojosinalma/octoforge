@@ -1,5 +1,5 @@
 # Allow-list: the image needs the workspace manifests, the packages, the vendored tailor-react source
-# (vendor/tailor-react, a workspace the web build imports) and .gitmodules, nothing else.
+# (vendor/tailor-react, a workspace the web build imports) and members.json, nothing else.
 # Member folders (octotally/, octohatchery/, octowarden/, any later one) are their own projects with
 # their own images and never enter this build context.
 *
@@ -7,7 +7,7 @@
 !bun.lock
 !bunfig.toml
 !tsconfig.base.json
-!.gitmodules
+!members.json
 !packages
 !vendor/tailor-react
 vendor/tailor-react/node_modules

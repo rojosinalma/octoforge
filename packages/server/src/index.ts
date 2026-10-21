@@ -1,6 +1,7 @@
 import { build } from './boot';
 import { ConfigError, loadEnv } from './env';
 import { pruneLog } from './lib/journal';
+import { MembersFileError } from './lib/members';
 import { getSettings } from './lib/settings';
 import { configureLog, errMessage, log } from './log';
 import { VERSION } from './version';
@@ -17,12 +18,20 @@ try {
 }
 configureLog(env.LOG_LEVEL);
 
-const { app, db, store, siblings } = await build(env);
+let built: Awaited<ReturnType<typeof build>>;
+try {
+  built = await build(env);
+} catch (err) {
+  boot.error(`refusing to start: ${errMessage(err)}`);
+  process.exit(err instanceof MembersFileError ? 78 : 1);
+}
+const { app, db, store, siblings } = built;
 boot.info('database ready', { db: db.describe });
 
 const server = Bun.serve({ port: env.PORT, hostname: '0.0.0.0', fetch: app.fetch, idleTimeout: 255 });
 boot.info('octoforge listening', {
   version: VERSION,
+  members: env.membersFile,
   port: env.PORT,
   auth: env.auth,
   memberApi: Boolean(env.OCTOFORGE_TOKEN),

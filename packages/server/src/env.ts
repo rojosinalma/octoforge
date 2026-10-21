@@ -28,7 +28,7 @@ const EnvSchema = z.object({
   OCTOFORGE_SHARED_DATA: z.string().startsWith('/', 'must be an absolute path').optional(),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
   WEB_DIST: z.string().optional(),
-  GITMODULES_FILE: z.string().optional(),
+  MEMBERS_FILE: z.string().optional(),
 });
 
 export type AuthMode = 'password' | 'none';
@@ -37,7 +37,7 @@ export type Env = Omit<z.infer<typeof EnvSchema>, 'DATABASE_URL'> & {
   DATABASE_URL: string;
   auth: AuthMode;
   webDist: string;
-  gitmodulesFile: string;
+  membersFile: string;
 };
 
 export class ConfigError extends Error {
@@ -84,6 +84,6 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
     OCTOFORGE_SHARED_DATA: e.OCTOFORGE_SHARED_DATA?.replace(/\/+$/, ''),
     auth,
     webDist: path.resolve(e.WEB_DIST ?? path.join(root, 'packages/web/dist')),
-    gitmodulesFile: path.resolve(e.GITMODULES_FILE ?? path.join(root, '.gitmodules')),
+    membersFile: path.resolve(e.MEMBERS_FILE ?? path.join(root, 'members.json')),
   };
 }

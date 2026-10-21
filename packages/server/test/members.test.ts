@@ -1,25 +1,61 @@
 import { describe, expect, test } from 'bun:test';
-import { parseGitmodules } from '../src/lib/members';
-import { GITMODULES, json, MANIFEST, testApp } from './helpers';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { parseMembersFile } from '@octoforge/shared';
+import { MembersFileError, membersFromFile } from '../src/lib/members';
+import { json, MANIFEST, MEMBERS, testApp } from './helpers';
 
-describe('parseGitmodules', () => {
-  test('reads path, url, homepage and the GitHub repo', () => {
-    expect(parseGitmodules(GITMODULES)).toEqual([
-      {
-        name: 'alice-tool',
-        path: 'alice-tool',
-        url: 'https://github.com/alice/alice-tool.git',
-        homepage: 'https://alice-tool.example.com',
-        repo: 'alice/alice-tool',
-      },
-      {
-        name: 'bob-tool',
-        path: 'bob-tool',
-        url: 'git@github.com:alice/bob-tool.git',
-        homepage: null,
-        repo: 'alice/bob-tool',
-      },
+const tmpFile = (content: string) => {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'octoforge-members-')), 'members.json');
+  fs.writeFileSync(file, content);
+  return file;
+};
+
+describe('members.json', () => {
+  test('valid file: name, repo, homepage (optional)', () => {
+    expect(membersFromFile(tmpFile(JSON.stringify(MEMBERS)))()).toEqual([
+      { name: 'alice-tool', repo: 'alice/alice-tool', homepage: 'https://alice-tool.example.com' },
+      { name: 'bob-tool', repo: 'alice/bob-tool', homepage: null },
     ]);
+  });
+
+  test('duplicate name is refused with its path', () => {
+    const r = parseMembersFile(
+      JSON.stringify({ members: [MEMBERS.members[1], { name: 'bob-tool', repo: 'alice/bob-two' }] }),
+    );
+    expect(r).toEqual({ ok: false, error: 'members.1.name: duplicate name bob-tool' });
+  });
+
+  test('bad repo, bad name, bad homepage and bad JSON are refused', () => {
+    const one = (m: unknown) => parseMembersFile(JSON.stringify({ members: [m] }));
+    const bad = one({ name: 'bob-tool', repo: 'bob-tool' });
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.error).toContain('members.0.repo: must be owner/name');
+    expect(one({ name: 'Bob', repo: 'alice/bob' }).ok).toBe(false);
+    expect(one({ name: 'bob', repo: 'alice/bob', homepage: 'not a url' }).ok).toBe(false);
+    expect(parseMembersFile('{').ok).toBe(false);
+  });
+
+  test('missing or invalid file fails at start-up with the reason', async () => {
+    expect(() => membersFromFile('/nonexistent/members.json')).toThrow(MembersFileError);
+    expect(() => membersFromFile(tmpFile('{"members":[{"name":"x"}]}'))).toThrow(/members\.0\.repo/);
+    await expect(testApp(() => undefined, { MEMBERS_FILE: '/nonexistent/members.json' })).rejects.toThrow(
+      /cannot read/,
+    );
+  });
+
+  test('re-read on mtime change; a bad edit keeps the last good list', () => {
+    const file = tmpFile(JSON.stringify(MEMBERS));
+    const list = membersFromFile(file);
+    expect(list().map((m) => m.name)).toEqual(['alice-tool', 'bob-tool']);
+    const later = (s: number) => new Date(Date.now() + s * 1000);
+    fs.writeFileSync(file, JSON.stringify({ members: [{ name: 'carol-tool', repo: 'alice/carol-tool' }] }));
+    fs.utimesSync(file, later(10), later(10));
+    expect(list().map((m) => m.name)).toEqual(['carol-tool']);
+    fs.writeFileSync(file, 'not json');
+    fs.utimesSync(file, later(20), later(20));
+    expect(list().map((m) => m.name)).toEqual(['carol-tool']);
   });
 });
 

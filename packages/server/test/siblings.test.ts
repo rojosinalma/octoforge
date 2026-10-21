@@ -60,7 +60,7 @@ describe('sibling list', () => {
         url: 'https://alice.example.com',
         icon: 'https://alice.example.com/favicon.svg',
       },
-      // No manifest anywhere: title from .gitmodules, no icon; its own public URL beats the reported one.
+      // No manifest anywhere: title from members.json, no icon; its own public URL beats the reported one.
       { name: 'bob-tool', title: 'bob-tool', url: 'https://bob.example.com' },
     ]);
     expect(Number.isNaN(Date.parse(list.updated_at))).toBe(false);

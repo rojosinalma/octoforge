@@ -10,14 +10,12 @@ configureLog('silent');
 
 export const TOKEN = 'm'.repeat(40);
 
-export const GITMODULES = `[submodule "alice-tool"]
-\tpath = alice-tool
-\turl = https://github.com/alice/alice-tool.git
-\thomepage = https://alice-tool.example.com
-[submodule "bob-tool"]
-\tpath = bob-tool
-\turl = git@github.com:alice/bob-tool.git
-`;
+export const MEMBERS = {
+  members: [
+    { name: 'alice-tool', repo: 'alice/alice-tool', homepage: 'https://alice-tool.example.com' },
+    { name: 'bob-tool', repo: 'alice/bob-tool' },
+  ],
+};
 
 export const MANIFEST = {
   contract: 1,
@@ -86,13 +84,13 @@ export const json = (data: unknown, status = 200, headers: Record<string, string
 
 export function testEnv(extra: Record<string, string> = {}): Env {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'octoforge-test-'));
-  const gm = path.join(dir, '.gitmodules');
-  fs.writeFileSync(gm, GITMODULES);
+  const membersFile = path.join(dir, 'members.json');
+  fs.writeFileSync(membersFile, JSON.stringify(MEMBERS));
   return loadEnv({
     AUTH: 'none',
     DATA_DIR: dir,
     DATABASE_URL: 'sqlite::memory:',
-    GITMODULES_FILE: gm,
+    MEMBERS_FILE: membersFile,
     OCTOFORGE_TOKEN: TOKEN,
     PUBLIC_URL: 'https://forge.example.com',
     SESSION_SECRET: 's'.repeat(40),

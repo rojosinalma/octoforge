@@ -25,7 +25,7 @@ jobs:
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
     steps:
-      # The member folders are not part of the image; .gitmodules is, so no submodule checkout.
+      # The member folders are not part of the image or the repository; members.json is.
       - uses: actions/checkout@v7
         with:
           ref: ${{ env.TAG }}
