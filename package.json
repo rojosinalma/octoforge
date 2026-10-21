@@ -1,6 +1,6 @@
 {
   "name": "octoforge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "license": "AGPL-3.0-only",
   "description": "Home of a family of self-hosted GitHub tools: an index with live status, a GitHub credentials helper and a shared database host.",

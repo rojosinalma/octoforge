@@ -6,6 +6,8 @@ All notable changes to Octoforge are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-21
+
 ### Fixed
 
 - Postgres adoption grants `CONNECT` on the shared database to the member role and `octoforge_reader`,
@@ -34,5 +36,6 @@ All notable changes to Octoforge are documented here. The format follows
 - `GET /health`, a container image with a health check, `compose.yaml`, and image publishing on tags.
 - `bin/verify` runs typecheck, lint, tests, build and a container smoke test after the index checks.
 
-[Unreleased]: https://github.com/rojosinalma/octoforge/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/rojosinalma/octoforge/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/rojosinalma/octoforge/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/rojosinalma/octoforge/releases/tag/v0.1.0
