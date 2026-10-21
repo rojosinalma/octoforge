@@ -1,13 +1,5 @@
 version: 2
 updates:
-  - package-ecosystem: gitsubmodule
-    directory: /
-    schedule:
-      interval: weekly
-      day: monday
-    commit-message:
-      prefix: "chore(submodules)"
-
   - package-ecosystem: github-actions
     directory: /
     schedule:
