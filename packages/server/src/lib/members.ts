@@ -1,9 +1,22 @@
 import fs from 'node:fs';
-import type { Instance, InstanceHealth, Manifest, ManifestSource, MemberCard } from '@octoforge/shared';
+import type {
+  Instance,
+  InstanceGithub,
+  InstanceHealth,
+  Manifest,
+  ManifestSource,
+  MemberCard,
+} from '@octoforge/shared';
 import { parseManifest } from '@octoforge/shared';
 import { errMessage, log } from '../log';
 import { type FetchLike, readJson, timedFetch } from './http';
 import { MemberClient } from './member-client';
+
+/** The shared App's id and slug, to name it on the cards. */
+export interface SharedAppRef {
+  id: number;
+  slug: string;
+}
 
 /** One entry of `.gitmodules`: a member of the family. */
 export interface Submodule {
@@ -155,15 +168,50 @@ export class MemberRegistry {
 
   async health(inst: Instance, path: string): Promise<InstanceHealth> {
     const h = await (await this.client(inst.baseUrl)).health(path);
-    return { instance: inst, up: h.up, httpStatus: h.httpStatus, latencyMs: h.ms, error: h.error };
+    return {
+      instance: inst,
+      up: h.up,
+      httpStatus: h.httpStatus,
+      latencyMs: h.ms,
+      error: h.error,
+      github: null,
+    };
   }
 
-  /** One card: manifest facts, a health probe per instance, links. */
-  async card(sub: Submodule, opts: { fresh?: boolean } = {}): Promise<MemberCard> {
+  /** The instance's `status.github` in short; null without the member token or when it does not answer. */
+  async github(inst: Instance, sharedApp: SharedAppRef | null): Promise<InstanceGithub | null> {
+    if (!this.deps.token) return null;
+    const r = await (await this.client(inst.baseUrl)).status();
+    const g = r.ok ? r.data.github : null;
+    if (!g) return null;
+    const appId = g.app_id ?? null;
+    return {
+      mode: g.mode,
+      source: g.source,
+      appId,
+      appSlug: sharedApp && appId !== null && String(appId) === String(sharedApp.id) ? sharedApp.slug : null,
+      login: g.login ?? null,
+      missing: g.missing ?? [],
+    };
+  }
+
+  /** One card: manifest facts, a health probe per instance (and its GitHub credential), links. */
+  async card(
+    sub: Submodule,
+    opts: { fresh?: boolean; sharedApp?: SharedAppRef | null } = {},
+  ): Promise<MemberCard> {
     const [lookup, instances] = await Promise.all([this.manifest(sub, opts), this.deps.instances(sub.name)]);
     const m = lookup.manifest;
     const healthPath = m?.health ?? '/health';
-    const healths = await Promise.all(instances.map((i) => this.health(i, healthPath)));
+    const healths = await Promise.all(
+      instances.map(async (i) => {
+        const [h, github] = await Promise.all([
+          this.health(i, healthPath),
+          m?.github ? this.github(i, opts.sharedApp ?? null) : Promise.resolve(null),
+        ]);
+        return { ...h, github: h.up ? github : null };
+      }),
+    );
     const up = healths.find((h) => h.up);
     const repoUrl = sub.repo ? `https://github.com/${sub.repo}` : null;
     return {

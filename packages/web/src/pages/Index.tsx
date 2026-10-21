@@ -15,7 +15,7 @@ import { Page, StatusDot } from '../components/Page';
 import { useApp } from '../hooks/useApp';
 import { useAsync, useInterval } from '../hooks/useAsync';
 import { useToast } from '../hooks/useToast';
-import { hostOf } from '../lib/format';
+import { githubSummary, hostOf } from '../lib/format';
 import { linkClick, navigate, useRoute } from '../router';
 
 function MemberIcon({ card }: { card: MemberCard }) {
@@ -39,15 +39,26 @@ function MemberIcon({ card }: { card: MemberCard }) {
   );
 }
 
-function InstanceLine({ h }: { h: InstanceHealth }) {
+function InstanceLine({ h, github }: { h: InstanceHealth; github: boolean }) {
   const state = h.up ? `up, ${h.latencyMs} ms` : `down: ${h.error ?? 'no answer'}`;
+  const g = h.github;
   return (
-    <li className="instance-line">
+    <li className="instance-line card-github">
       <StatusDot up={h.up} label={h.up ? 'up' : 'down'} />
       <Link href={h.instance.baseUrl} target="_blank" rel="noreferrer" className="instance-link">
         {h.instance.label || hostOf(h.instance.baseUrl)}
       </Link>
       <span className={h.up ? 'fg-muted' : 'fg-danger'}>{state}</span>
+      {github && g && (
+        <span className="fg-muted cell-inline">
+          <KeyIcon size={12} /> {githubSummary(g)}
+        </span>
+      )}
+      {github && g && g.missing.length > 0 && (
+        <Label variant="attention" size="small">
+          missing: {g.missing.join(', ')}
+        </Label>
+      )}
     </li>
   );
 }
@@ -75,7 +86,7 @@ function Card({ card }: { card: MemberCard }) {
       {card.instances.length > 0 && (
         <ul className="instance-lines">
           {card.instances.map((h) => (
-            <InstanceLine key={h.instance.id} h={h} />
+            <InstanceLine key={h.instance.id} h={h} github={Boolean(m?.github)} />
           ))}
         </ul>
       )}

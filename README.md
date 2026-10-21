@@ -10,8 +10,9 @@ Octoforge pulls them together as git submodules and pins versions that are known
 side. It also runs as a small app that ties the tools together:
 
 - **Index**: one card per tool, with the health of every running instance.
-- **Credentials**: create a GitHub App or a personal access token for a tool, check it, and hand it
-  to every instance of that tool, without ever writing it to disk.
+- **Credentials**: one GitHub App for every tool (or a personal access token where a tool needs
+  one), checked against what each tool needs and handed to every instance, without ever writing it
+  to disk.
 - **Database**: move the tools' data into one shared database, one schema per tool on Postgres or
   one file per tool in a shared directory.
 
@@ -62,7 +63,8 @@ describes, from inside that folder. To let Octoforge talk to a tool, set the sam
 in the tool's `.env`, restart it, and add its address under **Settings → Instances**.
 
 - **Members** shows every tool, its instances and whether they answer.
-- **Credentials** on a tool's card creates a GitHub App or a token and delivers it:
+- **GitHub App** sets up the one App every tool shares, shows which permissions are missing and
+  delivers it; **Credentials** on a tool's card handles tokens and per-tool Apps:
   [docs/credentials.md](docs/credentials.md).
 - **Database** moves a tool into the shared database and shows which instances need a restart.
 - **Log** lists every delivery and adoption.

@@ -7,6 +7,7 @@ import { THEME_LABELS, THEMES } from '../theme';
 
 const NAV = [
   { path: '/', label: 'Members' },
+  { path: '/github-app', label: 'GitHub App' },
   { path: '/database', label: 'Database' },
   { path: '/log', label: 'Log' },
   { path: '/settings', label: 'Settings' },

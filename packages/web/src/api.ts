@@ -15,6 +15,7 @@ import type {
   PendingCredential,
   Settings,
   SettingsPatch,
+  SharedAppView,
 } from '@octoforge/shared';
 import { API } from '@octoforge/shared';
 
@@ -120,6 +121,19 @@ export const api = {
       ...(existingPassword ? { existingPassword } : {}),
     }),
   release: (m: string, id: number) => send<{ result: AdoptResult } & Message>('DELETE', API.release(m, id)),
+  sharedApp: () => request<{ view: SharedAppView }>(API.sharedApp).then((r) => r.view),
+  registerSharedApp: (input: { appId: number; privateKey: string; webhookSecret?: string }) =>
+    send<{ view: SharedAppView } & Message>('PUT', API.sharedAppKey, input),
+  discardSharedKey: () => send<Message>('DELETE', API.sharedAppKey),
+  forgetSharedApp: () => send<Message>('DELETE', API.sharedApp),
+  recheckSharedApp: () => send<{ view: SharedAppView } & Message>('POST', API.sharedAppRecheck),
+  createSharedApp: (input: { name: string; org: string | null; instanceId: number | null }) =>
+    send<{ action: string; manifest: GitHubAppManifest; state: string }>('POST', API.sharedAppCreate, input),
+  deliverSharedApp: (instanceIds: number[], installationId: number | null) =>
+    send<{ results: DeliveryResult[]; cleared: boolean } & Message>('POST', API.sharedAppDeliver, {
+      instanceIds,
+      installationId,
+    }),
   log: (q: { kind?: LogKind; member?: string; before?: string }) => {
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries(q)) if (v) p.set(k, v);

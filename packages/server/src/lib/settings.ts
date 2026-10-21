@@ -41,3 +41,29 @@ export async function patchSettings(db: Db, patch: unknown): Promise<Settings> {
   }
   return getSettings(db);
 }
+
+/**
+ * A row of the settings table outside the settings schema (not editable through PUT /api/settings),
+ * for non-secret facts Octoforge learned, such as the shared GitHub App. Unparseable = null.
+ */
+export async function readFact<T>(db: Db, key: string): Promise<T | null> {
+  const [row] = await db.all<{ value: string }>(sql`select value from settings where key = ${key}`);
+  if (!row) return null;
+  try {
+    return JSON.parse(row.value) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function writeFact(db: Db, key: string, value: unknown): Promise<void> {
+  const now = new Date().toISOString();
+  await db.run(
+    sql`insert into settings (key, value, updated_at) values (${key}, ${JSON.stringify(value)}, ${now})
+        on conflict (key) do update set value = excluded.value, updated_at = excluded.updated_at`,
+  );
+}
+
+export async function deleteFact(db: Db, key: string): Promise<void> {
+  await db.run(sql`delete from settings where key = ${key}`);
+}

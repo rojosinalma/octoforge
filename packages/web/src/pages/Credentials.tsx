@@ -103,6 +103,16 @@ function InstanceStatusTable({
                     )}{' '}
                     {g?.login && <span className="mono">{g.login}</span>}
                     {g?.app_id ? <span className="mono"> App {g.app_id}</span> : null}
+                    {g?.missing && g.missing.length > 0 && (
+                      <div>
+                        <Label variant="attention">reports missing: {g.missing.join(', ')}</Label>{' '}
+                        {g.permissions_url && (
+                          <Link href={g.permissions_url} target="_blank" rel="noreferrer" className="small">
+                            edit permissions
+                          </Link>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td>{sourceLabel(g?.source)}</td>
                   <td className="mono">{s.status?.version || '?'}</td>
@@ -135,7 +145,7 @@ function InstanceStatusTable({
 }
 
 /** Posts the manifest to GitHub as a regular form submit: GitHub answers with its own pages. */
-function postToGitHub(action: string, manifest: object) {
+export function postToGitHub(action: string, manifest: object) {
   const form = document.createElement('form');
   form.method = 'post';
   form.action = action;
@@ -148,7 +158,7 @@ function postToGitHub(action: string, manifest: object) {
   form.submit();
 }
 
-function Owner({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+export function Owner({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const { settings } = useApp();
   return (
     <FormControl>
@@ -665,6 +675,51 @@ function PendingCard({
   );
 }
 
+/** The shared App, Octoforge's comparison with this member's needs, and the way to the GitHub App page. */
+function SharedAppNote({ member }: { member: string }) {
+  const shared = useAsync(() => api.sharedApp(), 'shared-app');
+  const v = shared.data;
+  if (!v) return null;
+  const mine = v.members.find((m) => m.name === member);
+  const go = linkClick('/github-app');
+  if (!v.app) {
+    return (
+      <Banner
+        variant="info"
+        title="Use the shared GitHub App"
+        description="One App serves every member. Set it up on the GitHub App page; an App for this member only is the alternative below."
+        primaryAction={
+          <Banner.PrimaryAction as="a" href="/github-app" onClick={go}>
+            Open GitHub App
+          </Banner.PrimaryAction>
+        }
+      />
+    );
+  }
+  const missing = mine?.missing ?? [];
+  return (
+    <div className="card-box stack">
+      <div className="pending-head">
+        <KeyIcon />
+        <strong>
+          Shared App <span className="mono">{v.app.slug}</span>
+        </strong>
+        {missing.length ? (
+          <Label variant="attention">missing: {missing.join(', ')}</Label>
+        ) : (
+          <span className="fg-success small">
+            <CheckIcon size={14} /> grants what this member needs
+          </span>
+        )}
+        <span className="spacer" />
+        <Button size="small" as="a" href="/github-app" onClick={go}>
+          {missing.length ? 'Update and deliver' : 'Deliver'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function CredentialsPage({ member }: { member: string }) {
   const { capabilities } = useApp();
   const { toast } = useToast();
@@ -733,6 +788,11 @@ export function CredentialsPage({ member }: { member: string }) {
           </p>
         )}
       </Section>
+      {m?.github?.auth.includes('app') && (
+        <Section title="Shared GitHub App">
+          <SharedAppNote member={member} />
+        </Section>
+      )}
       {(pending.data?.length ?? 0) > 0 && (
         <Section title="Waiting for delivery">
           <div className="stack">
@@ -750,7 +810,7 @@ export function CredentialsPage({ member }: { member: string }) {
         </Section>
       )}
       {c && m?.github?.auth.includes('app') && (
-        <Section title="Create a GitHub App">
+        <Section title="Create an App for this member only">
           <CreateApp card={c} manifest={m} instances={instances} statuses={statuses.data} />
         </Section>
       )}

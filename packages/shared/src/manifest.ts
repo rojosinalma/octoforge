@@ -114,6 +114,10 @@ export function parseManifest(input: unknown): ManifestParse {
 
 /** `GET /api/octoforge/status` answer of a member (credentials never appear in it). */
 export const Source = z.enum(['env', 'octoforge', 'none']);
+const HttpsUrl = z
+  .string()
+  .max(2048)
+  .regex(/^https:\/\/[^\s/]+(\/\S*)?$/);
 export const MemberStatus = z.object({
   contract: z.number().int(),
   version: z.string().default(''),
@@ -123,6 +127,16 @@ export const MemberStatus = z.object({
       source: Source.default('none'),
       app_id: z.union([z.number(), z.string()]).nullable().optional(),
       login: z.string().nullable().optional(),
+      /** Optional: permissions the member is sure it lacks, `"<permission>:<level>"`. Malformed = ignored. */
+      missing: z
+        .array(z.string().regex(/^[a-z_]+:(read|write|admin)$/))
+        .max(100)
+        .optional()
+        .catch(undefined),
+      /** Optional: GitHub page where the App's permissions are edited. Malformed = ignored. */
+      permissions_url: HttpsUrl.optional().catch(undefined),
+      /** Optional: GitHub page where the App is installed or its new permissions accepted. */
+      install_url: HttpsUrl.optional().catch(undefined),
     })
     .nullable()
     .default(null),

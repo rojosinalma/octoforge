@@ -5,6 +5,7 @@ import { AppProvider, useApp } from './hooks/useApp';
 import { ToastProvider } from './hooks/useToast';
 import { CredentialsPage } from './pages/Credentials';
 import { DatabasePage } from './pages/Database';
+import { GitHubAppPage } from './pages/GitHubApp';
 import { IndexPage } from './pages/Index';
 import { LogPage } from './pages/Log';
 import { LoginPage } from './pages/Login';
@@ -19,6 +20,7 @@ function Routes() {
   const cred = /^\/members\/([a-z0-9-]+)\/credentials$/.exec(route.path);
   if (cred?.[1]) return <CredentialsPage key={cred[1]} member={cred[1]} />;
   if (route.path === '/settings') return <SettingsPage />;
+  if (route.path === '/github-app') return <GitHubAppPage />;
   if (route.path === '/database') return <DatabasePage />;
   if (route.path === '/log') return <LogPage />;
   return <IndexPage />;

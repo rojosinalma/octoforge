@@ -6,6 +6,23 @@ All notable changes to Octoforge are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **GitHub App** page: one shared GitHub App for every member. Register an existing App by its id
+  and private key (checked with `GET /app`; the key stays in memory only), or create one from the
+  union of every member's permissions and events. A permission matrix shows what the App grants,
+  what each installation accepted and what each member needs, with links to GitHub's permission and
+  installation pages for every gap and a **Re-check** button. The App is delivered to every picked
+  instance of every member that can use an App.
+- Member status may report `github.missing`, `github.permissions_url` and `github.install_url`
+  (optional, contract stays 1). The member card and the Credentials page show reported gaps.
+- Member cards show the GitHub credential of each instance (`App acme-app (from Octoforge)`,
+  `token (from .env)`, `none`).
+
+### Changed
+
+- The Credentials page links the shared App; an App for one member only is the alternative.
+
 ## [0.1.2] - 2026-10-21
 
 ### Added

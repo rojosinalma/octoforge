@@ -35,9 +35,11 @@ export class ActionError extends Error {
   }
 }
 
-interface StateMeta extends Record<string, unknown> {
-  instanceId: number;
+export interface StateMeta extends Record<string, unknown> {
+  instanceId: number | null;
   org: string | null;
+  /** The flow creates the shared App (GitHub App page), not an App of one member. */
+  shared?: boolean;
 }
 type AppMeta = Omit<AppCredentials, 'pem' | 'webhookSecret'> & Record<string, unknown>;
 interface AppSecret {
@@ -61,7 +63,7 @@ export interface CredentialDeps {
 export class Credentials {
   constructor(private readonly deps: CredentialDeps) {}
 
-  private async limits() {
+  async limits() {
     const s = await getSettings(this.deps.db);
     return { ttlMs: s.secretTtlMin * 60_000, max: s.secretStoreMax };
   }
@@ -139,6 +141,7 @@ export class Credentials {
   /** Step 2 (GitHub redirect): checks `state`, exchanges the code, keeps the credentials in memory. */
   async finishApp(code: string, state: string): Promise<{ member: string; pending: PendingCredential }> {
     const st = this.deps.store.take<null, StateMeta>(state, 'state');
+    if (st?.meta.shared) throw new ActionError('validation', 'this state belongs to the shared App');
     if (!st) throw new ActionError('validation', 'unknown or expired state: start the App creation again');
     const conv = await this.deps.github.convertManifest(code);
     if (!conv.ok) throw new ActionError('upstream', conv.message);
@@ -221,19 +224,28 @@ export class Credentials {
             ...(input.installationId ? { installation_id: input.installationId } : {}),
           };
     const results = await Promise.all(
-      targets.map((inst) => this.deliverOne(e.member, e.kind, inst, body, e.meta)),
+      targets.map((inst) =>
+        this.deliverTo(e.member, e.kind as 'app' | 'pat', inst, body, this.logDetail(e.kind, e.meta)),
+      ),
     );
     const cleared = results.every((r) => r.ok);
     if (cleared) this.deps.store.delete(id);
     return { results, cleared };
   }
 
-  private async deliverOne(
+  private logDetail(kind: string, meta: AppMeta | PatMeta): Record<string, unknown> {
+    return kind === 'app'
+      ? { app: (meta as AppMeta).slug, app_id: (meta as AppMeta).id }
+      : { login: (meta as PatMeta).login, token_type: (meta as PatMeta).tokenType };
+  }
+
+  /** One `PUT /api/octoforge/github`, logged with `detail` plus the member's answer. Never logs the body. */
+  async deliverTo(
     member: string,
-    kind: string,
+    kind: 'app' | 'pat',
     inst: Instance,
     body: GithubBody,
-    meta: AppMeta | PatMeta,
+    baseDetail: Record<string, unknown>,
   ): Promise<DeliveryResult> {
     const r = await (await this.deps.members.client(inst.baseUrl)).putGithub(body);
     const result: DeliveryResult = r.ok
@@ -244,10 +256,7 @@ export class Credentials {
           restartRequired: r.data.restart_required ?? null,
         }
       : { instance: inst, ok: false, message: r.message, restartRequired: null };
-    const detail: Record<string, unknown> =
-      kind === 'app'
-        ? { app: (meta as AppMeta).slug, app_id: (meta as AppMeta).id }
-        : { login: (meta as PatMeta).login, token_type: (meta as PatMeta).tokenType };
+    const detail: Record<string, unknown> = { ...baseDetail };
     if (r.ok && r.data.login) detail.member_login = r.data.login;
     if (r.ok && r.data.app_slug) detail.member_app = r.data.app_slug;
     if (result.restartRequired !== null) detail.restart_required = result.restartRequired;

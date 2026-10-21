@@ -22,6 +22,17 @@ export function callbackRoutes(deps: AppDeps) {
     const code = c.req.query('code');
     const state = c.req.query('state');
     if (!code || !state) return back('/', { error: 'GitHub sent no code: create the App again' });
+    if (deps.sharedApp.ownsState(state)) {
+      try {
+        const app = await deps.sharedApp.finish(code, state);
+        logger.info('shared App created', { app: app.slug, app_id: app.id });
+        return back('/github-app', { created: app.slug });
+      } catch (err) {
+        const message = err instanceof ActionError ? err.message : `App creation failed: ${errMessage(err)}`;
+        logger.warn('App callback failed', { reason: message });
+        return back('/github-app', { error: message });
+      }
+    }
     try {
       const { member, pending } = await deps.credentials.finishApp(code, state);
       logger.info('App created', { member, app: pending.app?.slug, app_id: pending.app?.id });

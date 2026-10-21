@@ -8,6 +8,7 @@ import { SESSION_COOKIE, verifySession } from './lib/auth';
 import { ActionError, type Credentials } from './lib/credentials';
 import type { Database } from './lib/database';
 import type { MemberRegistry } from './lib/members';
+import type { SharedApp } from './lib/shared-app';
 import { errMessage, log } from './log';
 import { apiRoutes } from './routes/api';
 import { authRoutes } from './routes/auth';
@@ -21,6 +22,7 @@ export interface AppDeps {
   members: MemberRegistry;
   credentials: Credentials;
   database: Database;
+  sharedApp: SharedApp;
   sessionSecret: string;
 }
 

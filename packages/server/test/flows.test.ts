@@ -109,7 +109,9 @@ describe('GitHub App flow', () => {
     expect(text).not.toContain(HOOK_SECRET);
 
     const inst = await t.req('GET', `/api/pending/${id}/installations`);
-    expect(inst.body.installations).toEqual([{ id: 99, account: 'alice', accountType: 'User' }]);
+    expect(inst.body.installations).toEqual([
+      { id: 99, account: 'alice', accountType: 'User', permissions: {} },
+    ]);
     const jwtCall = t.calls.find((c) => c.url.startsWith('https://api.github.com/app/installations'));
     expect(jwtCall?.headers.get('authorization')).toMatch(/^Bearer [\w-]+\.[\w-]+\.[\w-]+$/);
 

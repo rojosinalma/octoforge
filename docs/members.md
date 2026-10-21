@@ -6,7 +6,8 @@ optional for standalone use: a member without `OCTOFORGE_TOKEN` behaves exactly 
 Octoforge uses the contract for three things:
 
 1. **Index**: one card per member, with its status.
-2. **Credentials**: create a GitHub App or a personal access token for a member and hand it over.
+2. **Credentials**: one shared GitHub App for every member, or a personal access token (or an App
+   of its own) for one member, handed over through the member API.
 3. **Database**: host the member's data next to the other members' data.
 
 ## 1. `octoforge.json`
@@ -58,7 +59,7 @@ Every member ships `octoforge.json` at its repository root and serves the same d
 | `name` | Repository name; also the container, image and schema name. |
 | `icon`, `health` | Paths on a running instance. `health` answers 200 when the instance is up. |
 | `github.auth` | Supported modes, preferred first: `app`, `pat`. Absent = the member needs no GitHub credentials. |
-| `github.app` | What the App manifest asks for. Octoforge adds the name, the URLs and the webhook secret. |
+| `github.app` | What the member needs from a GitHub App. The shared App asks for the union of every member's `permissions` (highest level wins) and `events`. One App has one webhook URL: when several members name a `webhook_path`, Octoforge names them and does not create the shared App. |
 | `github.pat` | Scopes for a classic token, permissions for a fine-grained token. `user_identity: true` means the token must act as the person (an App cannot replace it). The keys of `fine_grained` are GitHub's permission parameter names (`pull_requests`, `actions`, …): Octoforge puts them as they are into GitHub's pre-filled token form. |
 | `database.engines` | Engines the member can run on. `schema: true` = it can live in a named Postgres schema. |
 | `env` | Names of the variables the member reads. Octoforge uses them for the copyable fallback block. |
@@ -77,7 +78,7 @@ The same token value is set in Octoforge's `.env` and in each member's `.env`.
 | Route | Does |
 |---|---|
 | `GET /manifest` | The `octoforge.json` document itself, not wrapped in `{ok, message}`. No bearer needed. |
-| `GET /status` | `{contract, version, github: {mode, source, app_id?, login?}, database: {engine, schema?, source}, public_url?}`. `source` is `env`, `octoforge` or `none`. `public_url` is optional: the address where GitHub and browsers reach the member (`https://tool.example.com`), when it differs from the URL Octoforge calls. Octoforge uses it for the App's webhook and setup URLs unless the instance has its own public URL in Octoforge. Never returns a secret. |
+| `GET /status` | `{contract, version, github: {mode, source, app_id?, login?, missing?, permissions_url?, install_url?}, database: {engine, schema?, source}, public_url?}`. `source` is `env`, `octoforge` or `none`. `missing` is optional: the permissions the member is sure its App lacks, as `"<permission>:<level>"` entries (`["issues:write"]`); list definite gaps only, never guesses. `permissions_url` and `install_url` are optional `https://` links to the App's permission page and its installation page on GitHub. Octoforge shows `missing` on the member's card and Credentials page next to its own comparison; a malformed optional field is ignored, the rest of the status still counts. `public_url` is optional: the address where GitHub and browsers reach the member (`https://tool.example.com`), when it differs from the URL Octoforge calls. Octoforge uses it for the App's webhook and setup URLs unless the instance has its own public URL in Octoforge. Never returns a secret. |
 | `PUT /github` | Body `{mode: "pat", token}` or `{mode: "app", app_id, private_key, webhook_secret, installation_id?}`. The member checks the credential against GitHub (`GET /user` for a token, `GET /app` with a JWT for an App), stores it in its own settings and uses it from then on. A delivered value wins over the env value. Answer: `{ok, message, login? / app_slug?, restart_required}`; 400 when GitHub refuses the credential, 502 when GitHub cannot be reached. |
 | `DELETE /github` | Drops the delivered credential; the member goes back to its env value. |
 | `POST /database/adopt` | Body `{url, schema, copy}`. Moves the member to the database at `url` (section 3). |

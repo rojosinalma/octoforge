@@ -305,6 +305,55 @@ body {
   white-space: nowrap;
 }
 
+/* GitHub App -------------------------------------------------------------- */
+
+.table-scroll {
+  overflow-x: auto;
+}
+.matrix td:not(:first-child),
+.matrix th:not(:first-child) {
+  text-align: center;
+}
+.th-note {
+  display: block;
+  font-weight: var(--base-text-weight-normal, 400);
+}
+.matrix-gap {
+  background: var(--bgColor-danger-muted);
+  color: var(--fgColor-danger);
+  font-weight: var(--base-text-weight-semibold, 600);
+}
+.steps {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.steps > li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.deliver-member {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+}
+.deliver-member + .deliver-member {
+  border-top: var(--borderWidth-thin) solid var(--borderColor-muted);
+}
+.secret-area textarea,
+textarea.secret-area {
+  font-family: var(--fontStack-monospace);
+  font-size: var(--text-body-size-small, 12px);
+  -webkit-text-security: disc;
+}
+.card-github {
+  flex-wrap: wrap;
+}
+
 /* Members ----------------------------------------------------------------- */
 
 .member-grid {

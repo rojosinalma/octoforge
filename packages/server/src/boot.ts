@@ -10,6 +10,7 @@ import { listInstances } from './lib/instances';
 import { MemberRegistry, readSubmodules } from './lib/members';
 import { SecretStore } from './lib/secrets';
 import { getSettings } from './lib/settings';
+import { SharedApp } from './lib/shared-app';
 
 export interface Built {
   deps: AppDeps;
@@ -45,7 +46,8 @@ export async function build(
     sharedData: env.OCTOFORGE_SHARED_DATA,
     provision: opts.provision,
   });
+  const sharedApp = new SharedApp({ db, store, members, github, credentials, publicUrl: env.PUBLIC_URL });
   const sessionSecret = loadSessionSecret(env.SESSION_SECRET, env.DATA_DIR);
-  const deps: AppDeps = { env, db, members, credentials, database, sessionSecret };
+  const deps: AppDeps = { env, db, members, credentials, database, sharedApp, sessionSecret };
   return { deps, app: createApp(deps), store, db };
 }

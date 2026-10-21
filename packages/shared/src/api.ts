@@ -1,4 +1,5 @@
-import type { Manifest, MemberStatus } from './manifest';
+import type { AccessLevel, AuthMode, Manifest, MemberStatus } from './manifest';
+import type { AppUnion, PermissionMatrix } from './shared-app';
 
 // Every route answers {ok, message, ...data}; errors set ok: false, a kind and a reason.
 export type ApiOk<T extends object = Record<string, never>> = { ok: true; message: string } & T;
@@ -37,6 +38,20 @@ export interface InstanceHealth {
   httpStatus: number | null;
   latencyMs: number | null;
   error: string | null;
+  /** The GitHub credential the instance reports in its status; null when it was not asked or did not answer. */
+  github: InstanceGithub | null;
+}
+
+/** Short form of a member's `status.github` for the index card. */
+export interface InstanceGithub {
+  mode: string | null;
+  source: 'env' | 'octoforge' | 'none';
+  appId: number | string | null;
+  /** Slug of the shared App when `appId` is the shared App's id. */
+  appSlug: string | null;
+  login: string | null;
+  /** Permissions the member reports as missing. */
+  missing: string[];
 }
 
 export type ManifestSource = 'instance' | 'github' | 'none';
@@ -105,6 +120,53 @@ export interface Installation {
   id: number;
   account: string;
   accountType: string;
+  /** What the installation accepted; GitHub lists it with an App JWT. */
+  permissions: Record<string, string>;
+}
+
+/** Non-secret facts of the shared App, kept in the settings table so the page works after the key expired. */
+export interface SharedAppFacts {
+  id: number;
+  slug: string;
+  name: string;
+  owner: string | null;
+  ownerType: string;
+  htmlUrl: string;
+  permissions: Record<string, string>;
+  events: string[];
+  installations: Installation[];
+  /** When GitHub was last asked (ISO time). */
+  checkedAt: string;
+}
+
+export interface SharedAppMember {
+  name: string;
+  title: string;
+  auth: AuthMode[];
+  /** The member's `github.app.permissions`. */
+  needs: Record<string, AccessLevel>;
+  events: string[];
+  webhookPath: string | null;
+  /** What it needs and the App lacks (Octoforge's own comparison). */
+  missing: string[];
+}
+
+export interface SharedAppView {
+  app:
+    | (Omit<SharedAppFacts, 'installations'> & {
+        permissionsUrl: string;
+        installUrl: string;
+        installations: (Installation & { settingsUrl: string })[];
+      })
+    | null;
+  /** The key in memory: when it expires, whether a webhook secret came with it. Never the key. */
+  key: { expiresAt: string; hasWebhookSecret: boolean } | null;
+  union: AppUnion;
+  /** Members that can use a GitHub App. */
+  members: SharedAppMember[];
+  /** Members that cannot (token only, no GitHub, no manifest), with the reason. */
+  others: { name: string; title: string; reason: string }[];
+  matrix: PermissionMatrix;
 }
 
 export interface DeliveryResult {
@@ -155,6 +217,11 @@ export const API = {
   installations: (id: string) => `/api/pending/${encodeURIComponent(id)}/installations`,
   deliver: (id: string) => `/api/pending/${encodeURIComponent(id)}/deliver`,
   envBlock: (id: string) => `/api/pending/${encodeURIComponent(id)}/env`,
+  sharedApp: '/api/shared-app',
+  sharedAppKey: '/api/shared-app/key',
+  sharedAppRecheck: '/api/shared-app/recheck',
+  sharedAppCreate: '/api/shared-app/create',
+  sharedAppDeliver: '/api/shared-app/deliver',
   log: '/api/log',
   settings: '/api/settings',
   capabilities: '/api/capabilities',

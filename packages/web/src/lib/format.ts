@@ -34,3 +34,13 @@ export function publicUrlSourceLabel(source: 'instance' | 'member' | 'base'): st
   if (source === 'member') return 'reported by the member';
   return 'base URL';
 }
+
+/** Short form of an instance's GitHub credential: `App acme-app (from Octoforge)`, `token (from .env)`, `none`. */
+export function githubSummary(
+  g: { mode: string | null; source: string; appId?: number | string | null; appSlug?: string | null } | null,
+): string {
+  if (!g?.mode || g.source === 'none') return 'none';
+  const from = sourceLabel(g.source);
+  if (g.mode === 'app') return `App ${g.appSlug ?? g.appId ?? '?'} (${from})`;
+  return `token (${from})`;
+}

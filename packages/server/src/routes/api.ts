@@ -26,6 +26,22 @@ const AppStart = z.object({
     .nullable()
     .default(null),
 });
+const Org = z
+  .string()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/)
+  .nullable()
+  .default(null);
+// privateKey and webhookSecret: memory only (secret store), never logged, stored or returned.
+const SharedKeyBody = z.object({
+  appId: z.number().int().positive(),
+  privateKey: z.string().min(1).max(16_384),
+  webhookSecret: z.string().max(256).optional(),
+});
+const SharedStart = z.object({
+  name: z.string().trim().min(1).max(34),
+  org: Org,
+  instanceId: z.number().int().positive().nullable().default(null),
+});
 const PatBody = z.object({ token: z.string().min(1).max(255) });
 const DeliverBody = z.object({
   instanceIds: z.array(z.number().int().positive()).min(1).max(50),
@@ -83,12 +99,16 @@ export function apiRoutes(deps: AppDeps) {
 
   app.get('/members', async (c) => {
     const fresh = c.req.query('fresh') === '1';
-    const cards = await Promise.all(members.list().map((s) => members.card(s, { fresh })));
+    const sharedApp = await deps.sharedApp.ref();
+    const cards = await Promise.all(members.list().map((s) => members.card(s, { fresh, sharedApp })));
     return jsonOk(c, `${cards.length} members`, { members: cards });
   });
 
   app.get('/members/:m', async (c) => {
-    const card = await members.card(member(c.req.param('m')), { fresh: c.req.query('fresh') === '1' });
+    const card = await members.card(member(c.req.param('m')), {
+      fresh: c.req.query('fresh') === '1',
+      sharedApp: await deps.sharedApp.ref(),
+    });
     return jsonOk(c, card.name, { member: card });
   });
 
@@ -146,6 +166,47 @@ export function apiRoutes(deps: AppDeps) {
     const result = await database.release(member(c.req.param('m')).name, Id.parse(c.req.param('id')));
     if (!result.ok) return jsonErr(c, 'upstream', result.message);
     return jsonOk(c, result.message, { result });
+  });
+
+  // Shared GitHub App -------------------------------------------------------
+
+  app.get('/shared-app', async (c) => {
+    const view = await deps.sharedApp.view();
+    return jsonOk(c, view.app ? `App ${view.app.slug}` : 'no shared App yet', { view });
+  });
+
+  app.put('/shared-app/key', async (c) => {
+    const input = await body(c, SharedKeyBody);
+    const app = await deps.sharedApp.register(input);
+    c.header('cache-control', 'no-store');
+    return jsonOk(c, `App ${app.slug} checked; its key stays in memory until you deliver it`, {
+      view: await deps.sharedApp.view(),
+    });
+  });
+
+  app.delete('/shared-app/key', (c) =>
+    jsonOk(c, deps.sharedApp.discardKey() ? 'key forgotten' : 'no key in memory'),
+  );
+
+  app.delete('/shared-app', async (c) => {
+    await deps.sharedApp.forget();
+    return jsonOk(c, 'shared App forgotten (it still exists on GitHub)');
+  });
+
+  app.post('/shared-app/recheck', async (c) => {
+    const app = await deps.sharedApp.recheck();
+    return jsonOk(c, `App ${app.slug} read again`, { view: await deps.sharedApp.view() });
+  });
+
+  app.post('/shared-app/create', async (c) => {
+    const out = await deps.sharedApp.start(await body(c, SharedStart));
+    return jsonOk(c, 'post the manifest to GitHub', out);
+  });
+
+  app.post('/shared-app/deliver', async (c) => {
+    const out = await deps.sharedApp.deliver(await body(c, DeliverBody));
+    const failed = out.results.filter((r) => !r.ok).length;
+    return jsonOk(c, failed ? `${failed} of ${out.results.length} deliveries failed` : 'delivered', out);
   });
 
   // Instances ----------------------------------------------------------------

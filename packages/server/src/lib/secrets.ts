@@ -5,7 +5,8 @@ import { randomBytes } from 'node:crypto';
  * secret, a pasted token, a generated role password, the `state` of a manifest flow. Nothing here is ever written to disk, logged
  * or returned by the API; entries expire after their TTL and `take` removes them on delivery.
  */
-export type SecretKind = 'app' | 'pat' | 'state' | 'db';
+/** `shared`: the key of the one GitHub App every member uses. */
+export type SecretKind = 'app' | 'pat' | 'state' | 'db' | 'shared';
 
 export interface SecretEntry<T = unknown, M = Record<string, unknown>> {
   id: string;

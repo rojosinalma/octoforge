@@ -34,7 +34,7 @@ files, additive only, applied at start-up.
 
 | Table | Holds |
 |---|---|
-| `settings` | key/value (JSON) rows over the defaults of the settings schema; read at use time |
+| `settings` | key/value (JSON) rows over the defaults of the settings schema; read at use time. Row `shared_app` (outside the schema) holds the shared App's non-secret facts |
 | `instances` | member, base URL, optional public URL, label: where each member runs and where GitHub reaches it |
 | `deliveries` | time, member, target (instance URL or `env block`), kind (`app`, `pat`), ok, message, detail |
 | `adoptions` | time, member, target, engine (`postgres`, `sqlite`, `release`), ok, message, detail |
@@ -65,6 +65,13 @@ API never returns them except in the one-time `.env` block.
   secret in memory and shows the install link. "Find installations" lists them with an App JWT.
   **Deliver** sends `PUT /api/octoforge/github` to each picked instance; the secret is dropped once
   every target took it.
+- **Shared GitHub App**: "Use an existing App" takes the App id and key, signs a JWT and reads
+  `GET /app` and `GET /app/installations`; "Create the shared App" posts a manifest built from the
+  union of every member's `github.app` (the callback recognises the shared flow by its `state`).
+  The page shows a permission matrix (App granted, each installation accepted, each member needs),
+  links GitHub's permission and installation pages for each gap, and delivers the App to every
+  picked instance of every App member. Members may report their own definite gaps in
+  `/status.github.missing`.
 - **Token**: Octoforge links GitHub's pre-filled token forms (classic: scopes + description;
   fine-grained: name, description, expiry, owner, one parameter per permission). A pasted token is
   checked with `GET /user`; for classic tokens `X-OAuth-Scopes` is compared with the required scopes
@@ -124,6 +131,7 @@ with `OCTOFORGE_LEAK_PATTERNS`).
 | Secrets | Memory only, with a TTL and a size cap from settings, dropped on delivery | A credential exists in Octoforge only for the minutes between creation and hand-over | 2026-10-21 |
 | Public address of an instance | Optional `public_url` per instance, else the member's reported `public_url` in `/status` (optional field, contract stays 1), else the base URL | The base URL is where Octoforge calls the member, often a private name; GitHub needs an address it can reach for webhooks and the setup page | 2026-10-21 |
 | Existing member roles | Keep the password of a role Octoforge did not create (operator enters it, checked by a login first); rotate only roles recorded in `created_roles` by oid; `search_path` set `IN DATABASE` | A member may already use its role for its own database: a new password would break its `DATABASE_URL` and the rollback; a cluster-wide `search_path` would change it there too | 2026-10-21 |
+| GitHub App | One shared GitHub App for all members (2026-10-21): an existing App is registered by id + key (key in memory only; id, slug, owner, permissions and installations kept in `settings` row `shared_app`), or created from the union of every member's `github.app` (highest level wins, one `webhook_path` at most); gaps closed on GitHub's permission and installation pages, then re-checked with `GET /app`. Per-member Apps stay as the alternative | One key, one set of installations and one place to change permissions for every tool; GitHub has no API to change an App's permissions, so Octoforge shows the exact gaps and links the pages | 2026-10-21 |
 | Auth | Fail-closed password login (`AUTH_PASSWORD`), `AUTH=none` only on purpose | The app creates credentials; it must never start open by accident | 2026-10-21 |
 
 ## Current scope

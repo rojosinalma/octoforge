@@ -15,8 +15,23 @@ export interface AppCredentials {
   name: string;
   htmlUrl: string;
   owner: string | null;
+  ownerType: string;
+  permissions: Record<string, string>;
+  events: string[];
   pem: string;
   webhookSecret: string;
+}
+
+/** GET /app: who the App is and what it grants. */
+export interface AppInfo {
+  id: number;
+  slug: string;
+  name: string;
+  owner: string | null;
+  ownerType: string;
+  htmlUrl: string;
+  permissions: Record<string, string>;
+  events: string[];
 }
 
 export interface TokenCheck {
@@ -72,7 +87,7 @@ export class GitHubClient {
     ) {
       return { ok: false, status: out.res.status, message: 'GitHub answered without an App id, key or slug' };
     }
-    const owner = body.owner as { login?: string } | null | undefined;
+    const owner = body.owner as { login?: string; type?: string } | null | undefined;
     return {
       ok: true,
       data: {
@@ -81,6 +96,9 @@ export class GitHubClient {
         name: String(body.name ?? body.slug),
         htmlUrl: String(body.html_url ?? `https://github.com/apps/${body.slug}`),
         owner: owner?.login ?? null,
+        ownerType: owner?.type ?? 'User',
+        permissions: stringRecord(body.permissions),
+        events: Array.isArray(body.events) ? body.events.map(String).sort() : [],
         pem: body.pem,
         webhookSecret: typeof body.webhook_secret === 'string' ? body.webhook_secret : '',
       },
@@ -111,14 +129,41 @@ export class GitHubClient {
     };
   }
 
-  /** GET /app/installations with an App JWT: where the new App is installed. */
+  /** GET /app with an App JWT: the App's own facts and the permissions it grants. */
+  async app(appId: number, pem: string): Promise<GitHubResult<AppInfo>> {
+    const jwt = signOrNull(appId, pem);
+    if (!jwt) return { ok: false, status: null, message: 'the App key cannot sign a JWT' };
+    const out = await timedFetch('github', `${GITHUB_API}/app`, {
+      headers: { ...HEADERS, authorization: `Bearer ${jwt}` },
+      timeoutMs: await this.timeoutMs(),
+      fetchImpl: this.fetchImpl,
+    });
+    if (!out.ok) return { ok: false, status: null, message: out.message };
+    const body = (await readJson(out.res)) as Record<string, unknown> | null;
+    if (out.res.status === 401)
+      return { ok: false, status: 401, message: `GitHub does not accept this key for App ${appId}` };
+    if (!out.res.ok || !body || typeof body.id !== 'number' || typeof body.slug !== 'string')
+      return failure(out.res.status, body);
+    const owner = body.owner as { login?: string; slug?: string; type?: string } | null | undefined;
+    return {
+      ok: true,
+      data: {
+        id: body.id,
+        slug: body.slug,
+        name: String(body.name ?? body.slug),
+        owner: owner?.login ?? owner?.slug ?? null,
+        ownerType: owner?.type ?? 'User',
+        htmlUrl: String(body.html_url ?? `https://github.com/apps/${body.slug}`),
+        permissions: stringRecord(body.permissions),
+        events: Array.isArray(body.events) ? body.events.map(String).sort() : [],
+      },
+    };
+  }
+
+  /** GET /app/installations with an App JWT: where the App is installed and what each accepted. */
   async installations(appId: number, pem: string): Promise<GitHubResult<Installation[]>> {
-    let jwt: string;
-    try {
-      jwt = appJwt(appId, pem);
-    } catch {
-      return { ok: false, status: null, message: 'the App key cannot sign a JWT' };
-    }
+    const jwt = signOrNull(appId, pem);
+    if (!jwt) return { ok: false, status: null, message: 'the App key cannot sign a JWT' };
     const out = await timedFetch('github', `${GITHUB_API}/app/installations?per_page=100`, {
       headers: { ...HEADERS, authorization: `Bearer ${jwt}` },
       timeoutMs: await this.timeoutMs(),
@@ -130,12 +175,35 @@ export class GitHubClient {
     return {
       ok: true,
       data: body.map(
-        (i: { id: number; account?: { login?: string; slug?: string; type?: string } | null }) => ({
+        (i: {
+          id: number;
+          account?: { login?: string; slug?: string; type?: string } | null;
+          permissions?: unknown;
+        }) => ({
           id: i.id,
           account: i.account?.login ?? i.account?.slug ?? `installation ${i.id}`,
           accountType: i.account?.type ?? 'User',
+          permissions: stringRecord(i.permissions),
         }),
       ),
     };
   }
+}
+
+function signOrNull(appId: number, pem: string): string | null {
+  try {
+    return appJwt(appId, pem);
+  } catch {
+    return null;
+  }
+}
+
+/** `{name: level}` with string values only; anything else becomes `{}`. */
+function stringRecord(v: unknown): Record<string, string> {
+  if (!v || typeof v !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(v as Record<string, unknown>)
+      .filter(([, l]) => typeof l === 'string')
+      .sort(([a], [b]) => a.localeCompare(b)),
+  ) as Record<string, string>;
 }
