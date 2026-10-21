@@ -6,6 +6,10 @@ All notable changes to Octoforge are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- New logo and favicon in the style of the other tools: an anvil on a dark tile.
+
 ## [0.1.6] - 2026-10-22
 
 ### Changed

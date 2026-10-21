@@ -13,16 +13,17 @@ const NAV = [
 export function Logo({ size = 24 }: { size?: number }) {
   return (
     <svg aria-hidden="true" viewBox="0 0 32 32" width={size} height={size} className="wordmark-mark">
-      <rect x="1" y="1" width="30" height="30" rx="7" fill="var(--t-accent)" />
+      <rect width="32" height="32" rx="6" fill="var(--t-accent)" />
       <g
+        transform="translate(4 4)"
         fill="none"
         stroke="var(--t-on-accent)"
-        strokeWidth="2.4"
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <path d="M7 13h13l3-3h3v5h-3l-2 2v2H9z" />
-        <path d="M13 19v4M17 19v4M10 24h10" />
+        {/* lucide:anvil, the same glyph as public/favicon.svg */}
+        <path d="M7 10H6a4 4 0 0 1-4-4a1 1 0 0 1 1-1h4m0 0a1 1 0 0 1 1-1h13a1 1 0 0 1 1 1a7 7 0 0 1-7 7H8a1 1 0 0 1-1-1zm2 7v5m6-5v5M5 20a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1" />
       </g>
     </svg>
   );
