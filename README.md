@@ -19,6 +19,7 @@ side. It also runs as a small app that ties the tools together:
 |---|---|
 | [octotally](https://github.com/rojosinalma/octotally) | Every issue, pull request and discussion you are part of, on one page, filtered to what still needs you. |
 | [octohatchery](https://github.com/rojosinalma/octohatchery) | Orchestrator for self-hosted GitHub Actions runners: one ephemeral runner per job, typed runners, slots per host. |
+| [octowarden](https://github.com/rojosinalma/octowarden) | Repository configuration from reusable templates: plan, apply and audit settings, security, rulesets, labels, webhooks and files across many repos. |
 
 ## Requirements
 
@@ -56,7 +57,7 @@ Open <http://localhost:3000> and sign in. Every variable is described in
 
 ## Usage
 
-Each tool lives in its own folder (`octotally/`, `octohatchery/`) and is run exactly as its README
+Each tool lives in its own folder (`octotally/`, `octohatchery/`, `octowarden/`) and is run exactly as its README
 describes, from inside that folder. To let Octoforge talk to a tool, set the same `OCTOFORGE_TOKEN`
 in the tool's `.env`, restart it, and add its address under **Settings → Instances**.
 

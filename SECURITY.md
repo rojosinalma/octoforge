@@ -6,6 +6,7 @@ Report a vulnerability in a tool privately through that tool's GitHub Security A
 
 - [octotally](https://github.com/rojosinalma/octotally/security/advisories/new)
 - [octohatchery](https://github.com/rojosinalma/octohatchery/security/advisories/new)
+- [octowarden](https://github.com/rojosinalma/octowarden/security/advisories/new)
 
 For a problem in Octoforge itself (the app, the checks, the workflows, a pinned submodule pointing
 at a vulnerable version), use [this repository's advisory form](https://github.com/rojosinalma/octoforge/security/advisories/new).

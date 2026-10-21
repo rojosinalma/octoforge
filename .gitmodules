@@ -6,3 +6,7 @@
 	path = octohatchery
 	url = https://github.com/rojosinalma/octohatchery.git
 	homepage = https://github.com/rojosinalma/octohatchery
+[submodule "octowarden"]
+	path = octowarden
+	url = https://github.com/rojosinalma/octowarden.git
+	homepage = https://github.com/rojosinalma/octowarden
