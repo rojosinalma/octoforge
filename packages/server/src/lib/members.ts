@@ -7,7 +7,7 @@ import type {
   ManifestSource,
   MemberCard,
 } from '@octoforge/shared';
-import { parseManifest } from '@octoforge/shared';
+import { parseManifest, resolvePublicUrl } from '@octoforge/shared';
 import { errMessage, log } from '../log';
 import { type FetchLike, readJson, timedFetch } from './http';
 import { MemberClient } from './member-client';
@@ -171,6 +171,7 @@ export class MemberRegistry {
     const h = await (await this.client(inst.baseUrl)).health(path);
     return {
       instance: inst,
+      openUrl: resolvePublicUrl(inst).url,
       up: h.up,
       httpStatus: h.httpStatus,
       latencyMs: h.ms,
@@ -180,20 +181,33 @@ export class MemberRegistry {
     };
   }
 
-  /** The instance's `status.github` in short; null without the member token or when it does not answer. */
-  async github(inst: Instance, sharedApp: SharedAppRef | null): Promise<InstanceGithub | null> {
-    if (!this.deps.token) return null;
+  /**
+   * The instance's status in short: its GitHub credential (null when the member needs none) and the
+   * public URL it reports. Both null without the member token or when it does not answer.
+   */
+  async status(
+    inst: Instance,
+    sharedApp: SharedAppRef | null,
+    wantsGithub: boolean,
+  ): Promise<{ github: InstanceGithub | null; publicUrl: string | null }> {
+    if (!this.deps.token) return { github: null, publicUrl: null };
     const r = await (await this.client(inst.baseUrl)).status();
-    const g = r.ok ? r.data.github : null;
-    if (!g) return null;
+    if (!r.ok) return { github: null, publicUrl: null };
+    const publicUrl = r.data.public_url ?? null;
+    const g = wantsGithub ? r.data.github : null;
+    if (!g) return { github: null, publicUrl };
     const appId = g.app_id ?? null;
     return {
-      mode: g.mode,
-      source: g.source,
-      appId,
-      appSlug: sharedApp && appId !== null && String(appId) === String(sharedApp.id) ? sharedApp.slug : null,
-      login: g.login ?? null,
-      missing: g.missing ?? [],
+      publicUrl,
+      github: {
+        mode: g.mode,
+        source: g.source,
+        appId,
+        appSlug:
+          sharedApp && appId !== null && String(appId) === String(sharedApp.id) ? sharedApp.slug : null,
+        login: g.login ?? null,
+        missing: g.missing ?? [],
+      },
     };
   }
 
@@ -207,11 +221,12 @@ export class MemberRegistry {
     const healthPath = m?.health ?? '/health';
     const healths = await Promise.all(
       instances.map(async (i) => {
-        const [h, github] = await Promise.all([
+        const [h, st] = await Promise.all([
           this.health(i, healthPath),
-          m?.github ? this.github(i, opts.sharedApp ?? null) : Promise.resolve(null),
+          this.status(i, opts.sharedApp ?? null, Boolean(m?.github)),
         ]);
-        return { ...h, github: h.up ? github : null };
+        const openUrl = resolvePublicUrl(i, h.up ? st.publicUrl : null).url;
+        return { ...h, openUrl, github: h.up ? st.github : null };
       }),
     );
     const up = healths.find((h) => h.up);
@@ -223,6 +238,7 @@ export class MemberRegistry {
       icon: m?.icon && up ? `${up.instance.baseUrl}${m.icon}` : null,
       homepage: sub.homepage ?? repoUrl,
       repoUrl,
+      openUrl: (up ?? healths[0])?.openUrl ?? null,
       manifest: m,
       manifestSource: lookup.source,
       manifestError: lookup.error,

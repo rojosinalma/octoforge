@@ -6,6 +6,12 @@ All notable changes to Octoforge are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Member cards link to the tool itself: the title and a new **Open** button open the first
+  instance that is up, at its public URL (instance setting, else the `public_url` the tool reports,
+  else the base URL). Instance links use the same address.
+
 ## [0.1.4] - 2026-10-21
 
 ### Added

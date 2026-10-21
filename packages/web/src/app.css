@@ -535,3 +535,11 @@ textarea.secret-area {
   align-items: center;
   gap: 8px;
 }
+
+/* Card title links to the tool; keep the heading colour, underline on hover only. */
+.member-card-link {
+  color: inherit;
+}
+.member-card-link:hover {
+  color: var(--fgColor-accent);
+}

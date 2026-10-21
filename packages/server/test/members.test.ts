@@ -45,7 +45,13 @@ describe('index', () => {
       homepage: 'https://alice-tool.example.com',
       repoUrl: 'https://github.com/alice/alice-tool',
     });
-    expect(alice.instances[0]).toMatchObject({ up: true, httpStatus: 200 });
+    expect(alice.instances[0]).toMatchObject({
+      up: true,
+      httpStatus: 200,
+      openUrl: 'https://tool.example.com',
+    });
+    expect(alice.openUrl).toBe('https://tool.example.com');
+    expect(bob.openUrl).toBeNull();
     expect(bob).toMatchObject({
       name: 'bob-tool',
       title: 'Bob-tool',
@@ -54,6 +60,31 @@ describe('index', () => {
       instances: [],
     });
     expect(bob.manifestError).toContain('no octoforge.json');
+  });
+
+  test('open URL: instance public URL, else the reported public_url, else the base URL', async () => {
+    const t = await testApp((c) => {
+      if (c.url === 'http://tool-a.example.net:3000/api/octoforge/manifest') return json(MANIFEST);
+      if (c.url === 'http://tool-a.example.net:3000/health') return json({ ok: true });
+      if (c.url === 'http://tool-a.example.net:3000/api/octoforge/status')
+        return json({
+          contract: 1,
+          version: '1.0.0',
+          github: { mode: null, source: 'none' },
+          database: { engine: 'sqlite', source: 'env' },
+          public_url: 'https://tool.example.com',
+        });
+    });
+    const add = await t.req('POST', '/api/instances', {
+      member: 'alice-tool',
+      baseUrl: 'http://tool-a.example.net:3000',
+    });
+    let [alice] = (await t.req('GET', '/api/members?fresh=1')).body.members;
+    expect(alice.openUrl).toBe('https://tool.example.com');
+    await t.req('PATCH', `/api/instances/${add.body.instance.id}`, { publicUrl: 'https://open.example.com' });
+    [alice] = (await t.req('GET', '/api/members?fresh=1')).body.members;
+    expect(alice.openUrl).toBe('https://open.example.com');
+    expect(alice.instances[0].openUrl).toBe('https://open.example.com');
   });
 
   test('instances: member must be known, URL must be http(s), no duplicates', async () => {

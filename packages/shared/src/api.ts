@@ -34,6 +34,8 @@ export interface Instance {
 
 export interface InstanceHealth {
   instance: Instance;
+  /** Where a browser opens the instance: its public URL, else the one it reports, else the base URL. */
+  openUrl: string;
   up: boolean;
   httpStatus: number | null;
   latencyMs: number | null;
@@ -94,6 +96,8 @@ export interface MemberCard {
   icon: string | null;
   homepage: string | null;
   repoUrl: string | null;
+  /** Browser address of the first instance that is up (else the first instance); null when none. */
+  openUrl: string | null;
   manifest: Manifest | null;
   manifestSource: ManifestSource;
   manifestError: string | null;

@@ -52,8 +52,8 @@ function InstanceLine({ h, github }: { h: InstanceHealth; github: boolean }) {
   return (
     <li className="instance-line card-github">
       <StatusDot up={h.up} label={h.up ? 'up' : 'down'} />
-      <Link href={h.instance.baseUrl} target="_blank" rel="noreferrer" className="instance-link">
-        {h.instance.label || hostOf(h.instance.baseUrl)}
+      <Link href={h.openUrl} target="_blank" rel="noreferrer" className="instance-link">
+        {h.instance.label || hostOf(h.openUrl)}
       </Link>
       <span className={h.up ? 'fg-muted' : 'fg-danger'}>{state}</span>
       {github && g && (
@@ -83,7 +83,15 @@ function Card({ card }: { card: MemberCard }) {
       <div className="member-card-head">
         <MemberIcon card={card} />
         <div className="member-card-title">
-          <h2>{card.title}</h2>
+          <h2>
+            {card.openUrl ? (
+              <Link href={card.openUrl} target="_blank" rel="noreferrer" className="member-card-link">
+                {card.title}
+              </Link>
+            ) : (
+              card.title
+            )}
+          </h2>
           <span className="fg-muted mono">{card.name}</span>
         </div>
         {card.instances.length === 0 && <Label variant="secondary">Not deployed</Label>}
@@ -114,6 +122,19 @@ function Card({ card }: { card: MemberCard }) {
           </Link>
         )}
         <span className="spacer" />
+        {card.openUrl && (
+          <Button
+            size="small"
+            variant="primary"
+            leadingVisual={LinkExternalIcon}
+            as="a"
+            href={card.openUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open
+          </Button>
+        )}
         {m?.github && (
           <Button
             size="small"
