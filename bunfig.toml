@@ -1,0 +1,6 @@
+# Tests live in packages/*/test; the tool folders at the top level carry their own suites.
+[test]
+root = "./packages"
+
+[install]
+exact = true

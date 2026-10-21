@@ -1,0 +1,28 @@
+{
+  "name": "octoforge",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "description": "Home of a family of self-hosted GitHub tools: an index with live status, a GitHub credentials helper and a shared database host.",
+  "repository": "github:rojosinalma/octoforge",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter '*' dev",
+    "build": "bun run --filter @octoforge/shared build && bun run --filter @octoforge/web build && bun run --filter @octoforge/server build",
+    "start": "bun run --filter @octoforge/server start",
+    "typecheck": "bun run --filter '*' typecheck",
+    "lint": "biome check packages biome.json package.json tsconfig.base.json",
+    "lint:fix": "biome check --write packages biome.json package.json tsconfig.base.json",
+    "test": "bun test",
+    "verify": "bin/verify"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "bun": ">=1.3"
+  }
+}

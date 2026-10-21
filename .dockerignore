@@ -1,0 +1,23 @@
+# Allow-list: the image needs the workspace manifests, the packages and .gitmodules, nothing else.
+# Member folders (octotally/, octohatchery/, octowarden/, any later one) are their own projects with
+# their own images and never enter this build context.
+*
+!package.json
+!bun.lock
+!bunfig.toml
+!tsconfig.base.json
+!.gitmodules
+!packages
+packages/*/node_modules
+packages/*/dist
+packages/*/test
+
+# Spelled out as well, so the exclusion stays explicit even if the allow-list grows.
+octotally
+octohatchery
+octowarden
+node_modules
+data
+.git
+.env
+.env.*

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" data-color-mode="auto" data-light-theme="light" data-dark-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Octoforge</title>
+    <script>
+      // Apply the cached theme before the first paint to avoid a flash.
+      (() => {
+        try {
+          const t = localStorage.getItem('octoforge.theme');
+          if (!t) return;
+          const h = document.documentElement;
+          if (t === 'auto') {
+            h.setAttribute('data-color-mode', 'auto');
+            h.setAttribute('data-light-theme', 'light');
+            h.setAttribute('data-dark-theme', 'dark');
+          } else if (t.indexOf('dark') === 0) {
+            h.setAttribute('data-color-mode', 'dark');
+            h.setAttribute('data-dark-theme', t);
+          } else {
+            h.setAttribute('data-color-mode', 'light');
+            h.setAttribute('data-light-theme', t);
+          }
+        } catch (_) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

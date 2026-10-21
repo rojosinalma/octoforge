@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Octoforge">
+  <rect x="1" y="1" width="30" height="30" rx="7" fill="#8250df"/>
+  <g fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 13h13l3-3h3v5h-3l-2 2v2H9z"/>
+    <path d="M13 19v4M17 19v4M10 24h10"/>
+  </g>
+</svg>

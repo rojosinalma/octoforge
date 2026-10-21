@@ -1,0 +1,20 @@
+{
+  "name": "@octoforge/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "echo shared: source package, nothing to build",
+    "typecheck": "tsc -p tsconfig.json",
+    "dev": "echo shared: nothing to watch"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "bun-types": "1.4.3"
+  }
+}

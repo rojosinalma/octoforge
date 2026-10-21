@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# Consistency and leak checks for the octoforge index. Exit 0 = healthy.
+# Full verification. Exit 0 = healthy.
+#   1. index: README rows, .gitmodules and the checked-out submodules agree; no leaks in tracked files
+#   2. app: install (frozen lockfile), typecheck, lint, tests, build
+#   3. container: image build and a smoke test against /health (SKIP_DOCKER=1 skips it)
+# Usage: bin/verify    (SKIP_APP=1 runs the index checks only)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -68,4 +72,86 @@ for p in "${patterns[@]}"; do
 done
 
 [ "$errors" -eq 0 ] || { echo "verify: $errors check(s) failed" >&2; exit 1; }
-echo "verify: OK (${#readme_tools[@]} tools indexed, ${#submodules[@]} submodules)"
+echo "verify: index OK (${#readme_tools[@]} tools indexed, ${#submodules[@]} submodules)"
+
+if [[ "${SKIP_APP:-0}" == "1" ]]; then
+  echo "verify: app skipped (SKIP_APP=1)"
+  echo "verify: OK"
+  exit 0
+fi
+
+# --- App ----------------------------------------------------------------------------------------
+
+IMAGE="${VERIFY_IMAGE:-octoforge:verify}"
+HEALTH_TIMEOUT="${VERIFY_HEALTH_TIMEOUT:-30}"
+container=""
+
+die() {
+  echo "verify: FAIL $1" >&2
+  exit 1
+}
+
+cleanup() {
+  if [[ -n "$container" ]]; then
+    docker rm -f "$container" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
+
+step() {
+  local name=$1
+  shift
+  echo "verify: $name"
+  "$@" || die "$name"
+}
+
+command -v bun >/dev/null 2>&1 || die "bun (not installed; see CONTRIBUTING.md)"
+step install bun install --frozen-lockfile
+step typecheck bun run typecheck
+step lint bun run lint
+step test bun test
+step build bun run build
+
+if [[ "${SKIP_DOCKER:-0}" == "1" ]]; then
+  echo "verify: docker skipped (SKIP_DOCKER=1)"
+  echo "verify: OK"
+  exit 0
+fi
+
+command -v docker >/dev/null 2>&1 || die "docker (not installed; set SKIP_DOCKER=1 to skip)"
+step docker-build docker build -t "$IMAGE" .
+
+# Fail-closed start-up: without an auth decision the container must exit, not serve.
+echo "verify: docker-refuses-without-auth"
+if docker run --rm "$IMAGE" >/dev/null 2>&1; then die "docker-refuses-without-auth (container started without AUTH_PASSWORD)"; fi
+
+echo "verify: docker-run"
+container=$(docker run --rm -d -p 127.0.0.1:0:3000 -e AUTH_PASSWORD=verify "$IMAGE") || die docker-run
+
+port=$(docker port "$container" 3000/tcp | head -n1 | sed 's/.*://') || die docker-port
+[[ -n "$port" ]] || die docker-port
+
+echo "verify: health (http://127.0.0.1:${port}/health, up to ${HEALTH_TIMEOUT}s)"
+ok=0
+for ((i = 0; i < HEALTH_TIMEOUT; i++)); do
+  if curl -fsS -o /dev/null "http://127.0.0.1:${port}/health"; then
+    ok=1
+    break
+  fi
+  if ! docker inspect -f '{{.State.Running}}' "$container" 2>/dev/null | grep -q true; then
+    break
+  fi
+  sleep 1
+done
+
+if [[ "$ok" != "1" ]]; then
+  echo "verify: container logs:" >&2
+  docker logs "$container" >&2 2>&1 || true
+  die health
+fi
+
+curl -fsS "http://127.0.0.1:${port}/health"
+echo
+code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${port}/api/members")
+[[ "$code" == "401" ]] || die "api-gated (GET /api/members answered $code without a session, expected 401)"
+echo "verify: OK"

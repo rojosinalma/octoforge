@@ -1,0 +1,24 @@
+# Octoforge: run it with
+#   cp .env.example .env     # set AUTH_PASSWORD, OCTOFORGE_TOKEN and PUBLIC_URL
+#   docker compose up -d
+# Then open http://localhost:3000. Configuration: docs/configuration.md.
+# Build from source instead of pulling: docs/operations.md, "Build the image yourself".
+services:
+  octoforge:
+    # Use a release tag (X.Y.Z or X.Y) to pin a version; `latest` follows every release.
+    image: ghcr.io/rojosinalma/octoforge:latest
+    container_name: octoforge
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      # Host side of the mapping; the server inside the container always listens on 3000.
+      - "${OCTOFORGE_BIND:-0.0.0.0}:${OCTOFORGE_PORT:-3000}:3000"
+    volumes:
+      # SQLite database and the generated session secret; keep it on local disk.
+      - ./data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "bun -e \"fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
