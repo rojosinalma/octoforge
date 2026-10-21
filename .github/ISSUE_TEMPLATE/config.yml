@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: octotally issues
+    url: https://github.com/rojosinalma/octotally/issues/new/choose
+    about: Bugs and ideas for octotally go to its own repository.
+  - name: octohatchery issues
+    url: https://github.com/rojosinalma/octohatchery/issues/new/choose
+    about: Bugs and ideas for octohatchery go to its own repository.
+  - name: Security vulnerability
+    url: https://github.com/rojosinalma/octoforge/security/advisories/new
+    about: Report security issues privately — never in a public issue.

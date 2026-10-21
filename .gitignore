@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+compose.override.yaml
+.idea/
+.vscode/
+.DS_Store

@@ -1,0 +1,25 @@
+name: run-checks
+run-name: ${{ github.event.pull_request.title || github.event.head_commit.message }} · ${{ github.actor }}
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - run: bin/verify
