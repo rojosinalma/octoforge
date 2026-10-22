@@ -1,4 +1,4 @@
-/* managed by tailor v0.11.0 — tailor-react src/forms.tsx — do not edit, run `tailor sync` */
+/* managed by tailor v0.11.1 — tailor-react src/forms.tsx — do not edit, run `tailor sync` */
 // Forms: field, check, duration-input, settings-row (+ the drawn select, number steppers and Ui.Form) — markup per
 // core/components.json. The tailor.js behaviours are reimplemented in React (tailor.js is not loaded):
 // Tailor.selects (drawn select), Tailor.numbers (− / + steppers), T.duration, Tailor.settingsAutoSave (state,

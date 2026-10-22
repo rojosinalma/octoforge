@@ -1,4 +1,4 @@
-/* managed by tailor v0.11.0 — tailor-react src/feedback.tsx — do not edit, run `tailor sync` */
+/* managed by tailor v0.11.1 — tailor-react src/feedback.tsx — do not edit, run `tailor sync` */
 // Feedback: tooltip, help-popover, code-block, truncate, alert, toast, dialog,
 // confirm, progress, spinner — markup per core/components.json. The tailor.js
 // behaviours (tooltips, help, copy, dismiss, toast, dialogs, confirm) are

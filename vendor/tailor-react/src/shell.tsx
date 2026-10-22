@@ -1,4 +1,4 @@
-/* managed by tailor v0.11.0 — tailor-react src/shell.tsx — do not edit, run `tailor sync` */
+/* managed by tailor v0.11.1 — tailor-react src/shell.tsx — do not edit, run `tailor sync` */
 // App shell & layout: app-shell, navbar, sidebar, footer, page, section,
 // toolbar, grid, stack, split — markup per core/components.json.
 import {

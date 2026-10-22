@@ -1,4 +1,4 @@
-/* managed by tailor v0.11.0 — tailor-react src/data.tsx — do not edit, run `tailor sync` */
+/* managed by tailor v0.11.1 — tailor-react src/data.tsx — do not edit, run `tailor sync` */
 // Data display: badge, counter, chip, state-label, status-dot, avatar, table,
 // card, empty-state, timeline, relative-time — markup per core/components.json.
 import {

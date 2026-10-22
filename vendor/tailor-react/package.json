@@ -1,7 +1,7 @@
 {
-  "//": "managed by tailor v0.11.0 — tailor-react — do not edit, run `tailor sync`",
+  "//": "managed by tailor v0.11.1 — tailor-react — do not edit, run `tailor sync`",
   "name": "tailor-react",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "React adapter for the tailor design system: the Ui.* API over the tailor markup vocabulary, every skin and palette, plus a theme switcher.",
   "license": "MIT",
   "private": true,

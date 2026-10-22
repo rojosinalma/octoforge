@@ -1,4 +1,4 @@
-/* managed by tailor v0.11.0 — tailor-react src/index.ts — do not edit, run `tailor sync` */
+/* managed by tailor v0.11.1 — tailor-react src/index.ts — do not edit, run `tailor sync` */
 // tailor-react — the component API over the tailor markup vocabulary.
 // `import { Ui } from "tailor-react"` and render `<Ui.Button>`, `<Ui.Field>`, …
 // Default path renders the exact tailor markup (core/components.json); the kit

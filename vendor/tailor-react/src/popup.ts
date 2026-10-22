@@ -1,4 +1,4 @@
-/* managed by tailor v0.11.0 — tailor-react src/popup.ts — do not edit, run `tailor sync` */
+/* managed by tailor v0.11.1 — tailor-react src/popup.ts — do not edit, run `tailor sync` */
 // Runtime helpers shared by the drawn controls (select, menu, pinned help, pickers): the React twin of
 // Tailor.popup (one popup open at a time; Escape or a pointerdown outside closes it; flips above the trigger when
 // it does not fit below, hangs off the right edge near it), a mounted flag for the two-phase render, and the

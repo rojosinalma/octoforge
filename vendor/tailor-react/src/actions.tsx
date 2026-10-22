@@ -1,4 +1,4 @@
-/* managed by tailor v0.11.0 — tailor-react src/actions.tsx — do not edit, run `tailor sync` */
+/* managed by tailor v0.11.1 — tailor-react src/actions.tsx — do not edit, run `tailor sync` */
 // Actions & navigation: button, button-group, segmented, menu, tabs,
 // breadcrumb, pagination, list — markup per core/components.json; the
 // tailor.js behaviours (filters, tabs, menus, listbox) are reimplemented as

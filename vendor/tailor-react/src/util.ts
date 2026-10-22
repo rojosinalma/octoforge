@@ -1,4 +1,4 @@
-/* managed by tailor v0.11.0 — tailor-react src/util.ts — do not edit, run `tailor sync` */
+/* managed by tailor v0.11.1 — tailor-react src/util.ts — do not edit, run `tailor sync` */
 import type { HTMLAttributes, ReactNode } from "react";
 
 /** The fixed tone vocabulary (core/components.json → tones). */

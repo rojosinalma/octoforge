@@ -1,4 +1,4 @@
-/* managed by tailor v0.11.0 — tailor-react src/theme.tsx — do not edit, run `tailor sync` */
+/* managed by tailor v0.11.1 — tailor-react src/theme.tsx — do not edit, run `tailor sync` */
 // Theme switcher for React pages: the React Tailor.theme (core/tailor.js) — skin × palette × mode, same
 // semantics, same <html> data-* attributes, same <link id="t-skin|t-palette"> re-pointing, same localStorage keys
 // and the same bubbling `t:theme` event, so React apps get every skin and palette without loading tailor.js.
